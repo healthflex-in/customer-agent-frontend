@@ -7,7 +7,6 @@ import SlideButton from "@/components/SlideButton";
 import FormSelection from "@/pages/FormSelection";
 import TranscriptionInterface from "@/components/TranscriptionInterface";
 import { Button } from "@/components/ui/button";
-import { getApiUrl } from "@/config/api";
 import {
   Form,
   FormControl,
@@ -106,14 +105,11 @@ const Index = () => {
       try {
         setIsLoadingUsers(true);
         setUserError(null);
-        const response = await fetch(getApiUrl("/api/users"));
-        if (!response.ok) {
-          throw new Error(`Failed to fetch users: ${response.statusText}`);
-        }
-        const data = await response.json();
-        // Map API response to component format
-        const mappedUsers: User[] = (data.users || []).map((user: any) => ({
-          id: user.id,
+        const response = await fetchUsersByCenter(selectedCenterId);
+        
+        // Map GraphQL response to component format
+        const mappedUsers: User[] = (response?.users?.data || []).map((user: any) => ({
+          id: user._id,
           name:
             `${user.profileData?.firstName || ""} ${user.profileData?.lastName || ""}`.trim() ||
             "Unknown User",
