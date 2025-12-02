@@ -3,7 +3,7 @@ import { FileText, Clock } from "lucide-react";
 interface Form {
   formId: string;
   title: string;
-  timestamp: string;
+  timestamp?: string;
   createdAt: string;
   updatedAt: string;
   current_section: string;

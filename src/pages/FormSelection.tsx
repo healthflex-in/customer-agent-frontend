@@ -3,12 +3,16 @@ import { FormSelectionCard } from "@/components/cards/FormSelectionCard";
 import { MultipleChoiceCard } from "@/components/MultipleChoiceCard";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { getApiUrl } from "@/config/api";
 
 interface Form {
   formId: string;
   title: string;
   timestamp?: string;
-  current_section?: string;
+  createdAt: string;
+  updatedAt: string;
+  current_section: string;
+  progress: number;
 }
 
 interface FormSelectionProps {
@@ -34,7 +38,7 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
       try {
         setIsLoading(true);
         setError(null);
-        const response = await fetch(`https://customeragent.stance.health/api/users/${userId}/forms`);
+        const response = await fetch(getApiUrl(`/api/users/${userId}/forms`));
         if (!response.ok) {
           throw new Error(`Failed to fetch forms: ${response.statusText}`);
         }

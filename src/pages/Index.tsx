@@ -7,6 +7,7 @@ import SlideButton from "@/components/SlideButton";
 import FormSelection from "@/pages/FormSelection";
 import TranscriptionInterface from "@/components/TranscriptionInterface";
 import { Button } from "@/components/ui/button";
+import { getApiUrl } from "@/config/api";
 import {
   Form,
   FormControl,
@@ -63,7 +64,7 @@ const Index = () => {
       try {
         setIsLoadingUsers(true);
         setUserError(null);
-        const response = await fetch("https://customeragent.stance.health/api/users");
+        const response = await fetch(getApiUrl("/api/users"));
         if (!response.ok) {
           throw new Error(`Failed to fetch users: ${response.statusText}`);
         }
