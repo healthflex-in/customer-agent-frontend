@@ -260,7 +260,7 @@ export default function TranscriptionInterface({
   }, []);
 
   const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendStartNewForm, sendLoadForm, isConnected } = useWebSocket({
-    serverUrl: "ws://localhost:8000",
+    serverUrl: "wss://customeragent.stance.health",
     onMessage: handleWebSocketMessage,
     onTranscription: (transcription: string) => handleTranscription(transcription),
     onAudioStart: handleAudioStart,
@@ -948,7 +948,7 @@ export default function TranscriptionInterface({
                         });
 
                         const response = await fetch(
-                          `http://localhost:8000/api/forms/${formId}/attachments`,
+                          `https://customeragent.stance.health/api/forms/${formId}/attachments`,
                           {
                             method: "POST",
                             body: formData,

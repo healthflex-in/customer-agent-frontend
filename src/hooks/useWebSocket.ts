@@ -44,7 +44,7 @@ interface UseWebSocketOptions {
 }
 
 export default function useWebSocket({
-  serverUrl = "ws://localhost:8000",
+  serverUrl = "wss://customeragent.stance.health",
   onMessage,
   onTranscription,
   onAudioStart,
