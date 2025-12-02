@@ -63,7 +63,7 @@ const Index = () => {
       try {
         setIsLoadingUsers(true);
         setUserError(null);
-        const response = await fetch("http://localhost:8000/api/users");
+        const response = await fetch("https://customeragent.stance.health/api/users");
         if (!response.ok) {
           throw new Error(`Failed to fetch users: ${response.statusText}`);
         }
