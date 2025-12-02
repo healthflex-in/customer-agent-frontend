@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getWsUrl } from "@/config/api";
 
 interface InterviewState {
   section: string;
@@ -44,7 +45,7 @@ interface UseWebSocketOptions {
 }
 
 export default function useWebSocket({
-  serverUrl = "wss://customeragent.stance.health",
+  serverUrl = getWsUrl(),
   onMessage,
   onTranscription,
   onAudioStart,

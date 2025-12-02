@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { UnderstandingCard } from "@/components/cards/UnderstandingCard";
 import { FormProgressCard } from "@/components/cards/FormProgressCard";
+import { getApiUrl } from "@/config/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -260,7 +261,6 @@ export default function TranscriptionInterface({
   }, []);
 
   const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendStartNewForm, sendLoadForm, isConnected } = useWebSocket({
-    serverUrl: "wss://customeragent.stance.health",
     onMessage: handleWebSocketMessage,
     onTranscription: (transcription: string) => handleTranscription(transcription),
     onAudioStart: handleAudioStart,
@@ -948,7 +948,7 @@ export default function TranscriptionInterface({
                         });
 
                         const response = await fetch(
-                          `https://customeragent.stance.health/api/forms/${formId}/attachments`,
+                          getApiUrl(`/api/forms/${formId}/attachments`),
                           {
                             method: "POST",
                             body: formData,
