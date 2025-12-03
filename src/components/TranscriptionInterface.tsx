@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, Save, Trash2, MessageSquareX, Send } from "lucide-react";
+import { Mic, Save, Trash2, MessageSquareX, Send, Menu, X } from "lucide-react";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -40,8 +40,8 @@ interface TranscriptionInterfaceProps {
   initialFormId?: string | null; // null = new form, string = existing form ID
 }
 
-export default function TranscriptionInterface({ 
-  userId = "", 
+export default function TranscriptionInterface({
+  userId = "",
   userName = "",
   initialFormId = null
 }: TranscriptionInterfaceProps = {}) {
@@ -57,6 +57,7 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasConnectedRef = useRef(false);
@@ -115,7 +116,7 @@ export default function TranscriptionInterface({
 
     // DO NOT clear the transcription textarea when new AI message arrives
     // User may want to keep the transcription and send it manually
-    
+
     // Only add message if it has content
     if (message && message.trim()) {
       // Add assistant message
@@ -197,7 +198,7 @@ export default function TranscriptionInterface({
             completeAudio.byteOffset,
             completeAudio.byteOffset + completeAudio.byteLength
           ) as ArrayBuffer;
-          
+
           // Decode WAV audio
           const audioBuffer = await audioContextRef.current.decodeAudioData(audioArrayBuffer);
 
@@ -205,13 +206,13 @@ export default function TranscriptionInterface({
           const source = audioContextRef.current.createBufferSource();
           source.buffer = audioBuffer;
           source.connect(audioContextRef.current.destination);
-          
+
           currentAudioSourceRef.current = source;
           isPlayingAudioRef.current = true;
 
           // Play audio and wait for it to finish
           source.start(0);
-          
+
           source.onended = () => {
             currentAudioSourceRef.current = null;
             isPlayingAudioRef.current = false;
@@ -363,7 +364,7 @@ export default function TranscriptionInterface({
     }
 
     audioChunksRef.current.push(chunk);
-    
+
     // Convert blob to ArrayBuffer and send
     try {
       const arrayBuffer = await chunk.arrayBuffer();
@@ -446,7 +447,7 @@ export default function TranscriptionInterface({
       const timer = setTimeout(() => {
         connect();
       }, 100);
-      
+
       return () => {
         clearTimeout(timer);
       };
@@ -484,7 +485,7 @@ export default function TranscriptionInterface({
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
     if (isModelSpeaking || !isConnected) return;
-    
+
     try {
       // Reset flags
       isRecordingRef.current = false; // Don't set to true yet - wait for audio_start to be sent
@@ -494,13 +495,13 @@ export default function TranscriptionInterface({
       lastChunkTimeRef.current = 0;
       lastTranscriptionRef.current = ""; // Reset to allow new transcriptions
       shouldAutoSendOnStopRef.current = false;
-      
+
       // Clean up old played audio messages (keep only last 10)
       if (playedAudioMessagesRef.current.size > 10) {
         const messagesArray = Array.from(playedAudioMessagesRef.current);
         playedAudioMessagesRef.current = new Set(messagesArray.slice(-10));
       }
-      
+
       // Send audio_start message FIRST, before starting recording
       const startSent = sendAudioStart();
       if (!startSent) {
@@ -511,13 +512,13 @@ export default function TranscriptionInterface({
         });
         return;
       }
-      
+
       audioStartSentRef.current = true;
-      
+
       // Wait longer to ensure audio_start is processed by server
       // Server needs to set is_recording = true before accepting binary data
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // Now set recording flag and start recording
       isRecordingRef.current = true;
       await startRecording();
@@ -527,7 +528,7 @@ export default function TranscriptionInterface({
       audioStartSentRef.current = false;
       setIsListening(false);
       let errorMessage = "Failed to start recording. ";
-      
+
       if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
         errorMessage += "Microphone permission denied. Please allow microphone access and try again.";
       } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
@@ -539,7 +540,7 @@ export default function TranscriptionInterface({
       } else {
         errorMessage += "Please check microphone permissions and try again.";
       }
-      
+
       toast({
         title: "Recording Error",
         description: errorMessage,
@@ -566,8 +567,8 @@ export default function TranscriptionInterface({
     await new Promise(resolve => setTimeout(resolve, 200));
 
     // Calculate duration
-    const duration = recordingStartTimeRef.current 
-      ? (Date.now() - recordingStartTimeRef.current) / 1000 
+    const duration = recordingStartTimeRef.current
+      ? (Date.now() - recordingStartTimeRef.current) / 1000
       : 0;
 
     // Send audio_end message
@@ -619,7 +620,7 @@ export default function TranscriptionInterface({
       a.href = url;
       a.download = `chat-${Date.now()}.json`;
       a.click();
-      
+
       toast({
         title: "Chat Saved",
         description: "Your conversation has been saved to your device.",
@@ -657,7 +658,7 @@ export default function TranscriptionInterface({
     setIsUnderstanding(false);
     pendingTranscriptionRef.current = null;
     shouldAutoSendOnStopRef.current = false;
-    
+
     toast({
       title: "Chat Ended",
       description: "Your conversation has been cleared.",
@@ -700,7 +701,7 @@ export default function TranscriptionInterface({
 
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
-      
+
       // Check if line starts with bullet point (•, -, *, or numbered)
       if (trimmedLine.match(/^[•\-\*]\s/) || trimmedLine.match(/^\d+\.\s/)) {
         flushParagraph();
@@ -758,8 +759,8 @@ export default function TranscriptionInterface({
 
     const sectionIndex = interviewState.section
       ? interviewSteps.findIndex(
-          (step) => step.toLowerCase() === interviewState.section.toLowerCase()
-        )
+        (step) => step.toLowerCase() === interviewState.section.toLowerCase()
+      )
       : -1;
     const sectionStep = sectionIndex >= 0 ? sectionIndex + 1 : 0;
 
@@ -784,31 +785,45 @@ export default function TranscriptionInterface({
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="border-b border-border bg-card/50 backdrop-blur-sm p-4">
+      <div className="border-b border-border gradient-card backdrop-blur-sm p-4 lg:p-6 sticky top-0 z-20 shadow-lg">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">Medical Interview</h1>
-          <Badge 
+          <div className="flex items-center gap-3">
+            {/* Mobile menu toggle */}
+            {interviewState && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            )}
+            <h1 className="text-xl lg:text-2xl font-bold text-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Medical Interview
+            </h1>
+          </div>
+          <Badge
             variant={status === "connected" ? "default" : status === "connecting" ? "secondary" : "destructive"}
-            className="rounded-full"
+            className="rounded-full transition-smooth"
           >
             <div
-              className={`w-2 h-2 rounded-full mr-2 ${
-                status === "connected"
-                  ? "bg-primary-foreground animate-pulse"
-                  : status === "connecting"
+              className={`w-2 h-2 rounded-full mr-2 ${status === "connected"
+                ? "bg-primary-foreground animate-pulse"
+                : status === "connecting"
                   ? "bg-muted-foreground animate-pulse"
                   : "bg-destructive-foreground"
-              }`}
+                }`}
             />
             {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Disconnected"}
           </Badge>
         </div>
         {userId && userName && (
-          <div className="mt-2 flex items-center gap-2 text-sm">
+          <div className="mt-2 flex items-center gap-2 text-sm flex-wrap">
             <span className="text-muted-foreground">User:</span>
             <span className="font-medium text-foreground">{userName}</span>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-muted-foreground">ID: {userId}</span>
+            <span className="text-muted-foreground hidden sm:inline">•</span>
+            <span className="text-muted-foreground hidden sm:inline">ID: {userId}</span>
           </div>
         )}
       </div>
@@ -818,17 +833,17 @@ export default function TranscriptionInterface({
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Progress Bar */}
           {interviewState && (
-            <div className="border-b border-border bg-muted/50 p-4">
+            <div className="border-b border-primary/20 gradient-card p-3 lg:p-4">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">{interviewState.progress.toFixed(0)}%</span>
+                <div className="flex justify-between text-xs lg:text-sm">
+                  <span className="text-muted-foreground font-medium">Progress</span>
+                  <span className="font-bold text-primary">{interviewState.progress.toFixed(0)}%</span>
                 </div>
-                <Progress value={interviewState.progress} className="h-2" />
-                <div className="text-sm text-muted-foreground">
-                  Section: {interviewState.section}
+                <Progress value={interviewState.progress} className="h-2 lg:h-3" />
+                <div className="text-xs lg:text-sm text-muted-foreground flex flex-wrap gap-2">
+                  <span className="font-medium">Section: <span className="text-foreground">{interviewState.section}</span></span>
                   {interviewState.missing_fields.length > 0 && (
-                    <span className="ml-2">
+                    <span className="hidden sm:inline">
                       • Missing: {interviewState.missing_fields.join(", ")}
                     </span>
                   )}
@@ -846,27 +861,28 @@ export default function TranscriptionInterface({
           )}
 
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground text-lg">Start speaking to begin your conversation</p>
+                <p className="text-muted-foreground text-base lg:text-lg text-center px-4">
+                  Start speaking to begin your conversation
+                </p>
               </div>
             ) : (
               messages.map((message, index) => {
                 const isLastUserMessage = message.role === "user" && index === lastUserMessageIndex;
                 return (
-                  <div key={index} className="space-y-3">
+                  <div key={index} className="space-y-3 animate-fade-in-up">
                     <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div
-                        className={`max-w-[70%] rounded-2xl p-4 ${
-                          message.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-card text-card-foreground border border-border"
-                        }`}
+                        className={`max-w-[90%] sm:max-w-[80%] lg:max-w-[70%] rounded-2xl p-4 shadow-lg transition-smooth hover:shadow-xl ${message.role === "user"
+                          ? "bg-primary text-primary-foreground glow-primary"
+                          : "bg-card text-card-foreground border-2 border-primary/30 hover:border-primary/50"
+                          }`}
                       >
                         {message.role === "assistant"
                           ? formatMessageContent(message.content)
-                          : <p className="text-sm">{message.content}</p>}
+                          : <p className="text-sm lg:text-base font-medium">{message.content}</p>}
                         <span className="text-xs opacity-70 mt-2 block">{message.timestamp.toLocaleTimeString()}</span>
                       </div>
                     </div>
@@ -915,7 +931,7 @@ export default function TranscriptionInterface({
                     onChange={async (e) => {
                       const files = e.target.files;
                       if (!files || files.length === 0) return;
-                      
+
                       const formId = currentFormId || interviewState?.formId;
                       if (!formId) {
                         toast({
@@ -975,16 +991,16 @@ export default function TranscriptionInterface({
                           setInterviewState((prev) =>
                             prev
                               ? {
-                                  ...prev,
-                                  attachments:
-                                    result.attachments ||
-                                    prev.attachments ||
-                                    [],
-                                  progress:
-                                    result.progress !== undefined
-                                      ? result.progress
-                                      : prev.progress,
-                                }
+                                ...prev,
+                                attachments:
+                                  result.attachments ||
+                                  prev.attachments ||
+                                  [],
+                                progress:
+                                  result.progress !== undefined
+                                    ? result.progress
+                                    : prev.progress,
+                              }
                               : null
                           );
                         }
@@ -1036,101 +1052,143 @@ export default function TranscriptionInterface({
 
         {/* Sidebar with Form Status */}
         {interviewState && (
-          <div className="w-80 border-l border-border bg-card/50 p-4 overflow-y-auto space-y-4">
-            <FormProgressCard
-              style="clean"
-              currentStep={derivedCurrentStep}
-              totalSteps={interviewSteps.length}
-              steps={interviewSteps}
-            />
-            {interviewState.attachments && interviewState.attachments.length > 0 && (
-              <div className="rounded-2xl border border-border/60 p-4 bg-background/40 space-y-2">
-                <p className="text-sm font-medium text-foreground">Uploaded documents</p>
-                <div className="space-y-2">
-                  {interviewState.attachments.map((att) => (
-                    <div key={att.id} className="text-xs text-muted-foreground space-y-1">
-                      <div className="flex justify-between gap-2">
-                        <span className="font-semibold text-foreground">{att.label}</span>
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          View
-                        </a>
+          <>
+            {/* Mobile overlay */}
+            {isSidebarOpen && (
+              <div
+                className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
+
+            {/* Sidebar */}
+            <div
+              className={`
+                fixed lg:relative top-0 right-0 h-full
+                w-80 lg:w-80
+                border-l border-primary/20
+                gradient-card backdrop-blur-md
+                p-4 lg:p-6
+                overflow-y-auto space-y-4
+                z-40 lg:z-0
+                transition-transform duration-300 ease-in-out
+                ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
+                shadow-2xl lg:shadow-none
+              `}
+            >
+              {/* Close button for mobile */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden absolute top-4 right-4"
+                onClick={() => setIsSidebarOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+
+              <FormProgressCard
+                style="clean"
+                currentStep={derivedCurrentStep}
+                totalSteps={interviewSteps.length}
+                steps={interviewSteps}
+              />
+              {interviewState.attachments && interviewState.attachments.length > 0 && (
+                <div className="rounded-2xl border-2 border-primary/30 p-4 bg-background/60 space-y-2 shadow-lg">
+                  <p className="text-sm font-semibold text-foreground">Uploaded documents</p>
+                  <div className="space-y-2">
+                    {interviewState.attachments.map((att) => (
+                      <div key={att.id} className="text-xs text-muted-foreground space-y-1 p-2 rounded-lg bg-muted/30">
+                        <div className="flex justify-between gap-2">
+                          <span className="font-semibold text-foreground">{att.label}</span>
+                          <a
+                            href={att.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline font-medium"
+                          >
+                            View
+                          </a>
+                        </div>
+                        <p>{att.fileName}</p>
+                        <p className="text-[11px]">
+                          {new Date(att.uploadedAt).toLocaleString()}
+                        </p>
                       </div>
-                      <p>{att.fileName}</p>
-                      <p className="text-[11px]">
-                        {new Date(att.uploadedAt).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            {interviewState.missing_fields.length > 0 && (
-              <div className="rounded-2xl border border-border/60 p-4 bg-background/40">
-                <p className="text-sm font-medium mb-2 text-foreground">Missing details</p>
-                <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-                  {interviewState.missing_fields.map((field, idx) => (
-                    <li key={idx}>{field}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+              )}
+              {interviewState.missing_fields.length > 0 && (
+                <div className="rounded-2xl border-2 border-primary/30 p-4 bg-background/60 shadow-lg">
+                  <p className="text-sm font-semibold mb-2 text-foreground">Missing details</p>
+                  <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                    {interviewState.missing_fields.map((field, idx) => (
+                      <li key={idx}>{field}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
       {/* Transcription Input */}
-      <div className="border-t border-border bg-card/50 backdrop-blur-sm p-6 space-y-4">
+      <div className="border-t border-primary/20 gradient-card backdrop-blur-sm p-4 lg:p-6 space-y-4">
         <div className="relative">
           <Textarea
             ref={textareaRef}
             value={editedTranscript || currentTranscript}
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder={isRecording ? "Listening... your speech will appear here..." : "Your transcription will appear here... or type manually"}
-            className="min-h-[100px] pr-16 rounded-2xl bg-background border-border resize-none"
+            className="min-h-[80px] lg:min-h-[100px] pr-16 rounded-2xl bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/50 resize-none transition-smooth text-sm lg:text-base"
             disabled={isModelSpeaking}
           />
           {(editedTranscript.trim() || currentTranscript.trim()) && (
             <Button
               onClick={handleSendMessage}
               size="icon"
-              className="absolute bottom-3 right-3 rounded-full bg-primary hover:bg-primary/90"
+              className="absolute bottom-3 right-3 rounded-full bg-primary hover:bg-primary/90 glow-primary transition-smooth"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4 text-primary-foreground" />
             </Button>
           )}
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-2 justify-center sm:justify-start w-full sm:w-auto">
             <Button
               onClick={handleSaveChat}
               variant="secondary"
               size="lg"
-              className="rounded-2xl"
+              className="rounded-2xl transition-smooth hover:scale-105 text-sm lg:text-base"
               disabled={messages.length === 0}
             >
               <Save className="h-4 w-4 mr-2" />
-              Save Chat
+              <span className="hidden sm:inline">Save Chat</span>
+              <span className="sm:hidden">Save</span>
             </Button>
             <Button
               onClick={handleClearForm}
               variant="secondary"
               size="lg"
-              className="rounded-2xl"
+              className="rounded-2xl transition-smooth hover:scale-105 text-sm lg:text-base"
               disabled={!editedTranscript.trim()}
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Clear
+              <span className="hidden sm:inline">Clear</span>
+              <span className="sm:hidden">Clear</span>
             </Button>
-            <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
+            <Button
+              onClick={handleEndChat}
+              variant="destructive"
+              size="lg"
+              className="rounded-2xl transition-smooth hover:scale-105 text-sm lg:text-base"
+            >
               <MessageSquareX className="h-4 w-4 mr-2" />
-              End Chat
+              <span className="hidden sm:inline">End Chat</span>
+              <span className="sm:hidden">End</span>
             </Button>
           </div>
 
@@ -1139,14 +1197,15 @@ export default function TranscriptionInterface({
             onClick={handleMicClick}
             size="lg"
             disabled={!isConnected || isModelSpeaking}
-            className={`rounded-full w-16 h-16 ${
-              isRecording ? "bg-primary hover:bg-primary/90 p-0" : "bg-primary hover:bg-primary/90"
-            }`}
+            className={`rounded-full w-16 h-16 lg:w-20 lg:h-20 transition-smooth ${isRecording
+                ? "bg-primary hover:bg-primary/90 p-0 animate-pulse-glow"
+                : "bg-primary hover:bg-primary/90 hover:scale-110 glow-primary"
+              }`}
           >
             {isRecording ? (
               <WaveformAnimation isActive={isRecording} audioLevel={audioLevel} />
             ) : (
-              <Mic className="h-6 w-6" />
+              <Mic className="h-6 w-6 lg:h-8 lg:w-8 text-primary-foreground" />
             )}
           </Button>
         </div>

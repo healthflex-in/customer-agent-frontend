@@ -106,7 +106,7 @@ const Index = () => {
         setIsLoadingUsers(true);
         setUserError(null);
         const response = await fetchUsersByCenter(selectedCenterId);
-        
+
         // Map GraphQL response to component format
         const mappedUsers: User[] = (response?.users?.data || []).map((user: any) => ({
           id: user._id,
@@ -171,19 +171,22 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 lg:p-6 relative overflow-hidden">
+      {/* Background gradient effect */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5 pointer-events-none" />
+
+      <div className="max-w-md w-full space-y-6 lg:space-y-8 relative z-10 animate-fade-in-up">
         <div className="space-y-4 text-center">
-          <h1 className="text-4xl font-bold text-foreground">
+          <h1 className="text-3xl lg:text-4xl font-bold text-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Medical Interview
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-base lg:text-lg text-muted-foreground">
             Select center and user to start the interview
           </p>
         </div>
 
         <Form {...form}>
-          <form className="space-y-6">
+          <form className="space-y-6 animate-slide-in">
             {/* Center Selection */}
             <FormField
               control={form.control}
@@ -210,13 +213,13 @@ const Index = () => {
                           {isLoadingCenters
                             ? "Loading centers..."
                             : field.value
-                            ? (() => {
+                              ? (() => {
                                 const center = centers.find(
                                   (c) => c._id === field.value
                                 );
                                 return center ? center.name : "Select a center...";
                               })()
-                            : "Select a center..."}
+                              : "Select a center..."}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -297,17 +300,17 @@ const Index = () => {
                           {!selectedCenterId
                             ? "Select a center first"
                             : isLoadingUsers
-                            ? "Loading users..."
-                            : field.value
-                            ? (() => {
-                                const user = users.find(
-                                  (u) => u.id === field.value
-                                );
-                                return user
-                                  ? `${user.name} (${user.id})`
-                                  : "Type or select a user...";
-                              })()
-                            : "Type or select a user..."}
+                              ? "Loading users..."
+                              : field.value
+                                ? (() => {
+                                  const user = users.find(
+                                    (u) => u.id === field.value
+                                  );
+                                  return user
+                                    ? `${user.name} (${user.id})`
+                                    : "Type or select a user...";
+                                })()
+                                : "Type or select a user..."}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
