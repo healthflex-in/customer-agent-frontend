@@ -29,7 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { fetchCenters, fetchUsersByCenter } from "@/utils/graphql-client";
+import { fetchCenters, searchUsersWithPagination } from "@/utils/graphql-client";
 
 interface User {
   id: string;
@@ -53,6 +53,7 @@ const Index = () => {
   const [showConversation, setShowConversation] = useState(false);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [userOpen, setUserOpen] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
   const [centerOpen, setCenterOpen] = useState(false);
   const [centers, setCenters] = useState<Center[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -93,7 +94,7 @@ const Index = () => {
     loadCenters();
   }, []);
 
-  // Fetch users when center is selected
+  // Search users when search term changes
   useEffect(() => {
     if (!selectedCenterId) {
       setUsers([]);
@@ -101,11 +102,16 @@ const Index = () => {
       return;
     }
 
-    const loadUsers = async () => {
+    if (!userSearch) {
+      setUsers([]);
+      return;
+    }
+
+    const delaySearch = setTimeout(async () => {
       try {
         setIsLoadingUsers(true);
         setUserError(null);
-        const response = await fetchUsersByCenter(selectedCenterId);
+        const response = await searchUsersWithPagination('PATIENT', [selectedCenterId], userSearch);
 
         // Map GraphQL response to component format
         const mappedUsers: User[] = (response?.users?.data || []).map((user: any) => ({
@@ -115,18 +121,16 @@ const Index = () => {
             "Unknown User",
         }));
         setUsers(mappedUsers);
-        // Clear user selection when center changes
-        form.setValue("userId", "");
       } catch (error) {
         console.error("Error fetching users:", error);
         setUserError(error instanceof Error ? error.message : "Failed to load users");
       } finally {
         setIsLoadingUsers(false);
       }
-    };
+    }, 500);
 
-    loadUsers();
-  }, [selectedCenterId, form]);
+    return () => clearTimeout(delaySearch);
+  }, [selectedCenterId, userSearch]);
 
   const selectedUser = users.find((user) => user.id === selectedUserId);
   const isFormValid = form.formState.isValid && selectedCenterId && selectedUserId && !isLoadingUsers;
@@ -317,7 +321,11 @@ const Index = () => {
                     </PopoverTrigger>
                     <PopoverContent className="w-full p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Search users..." />
+                        <CommandInput 
+                          placeholder="Search users..." 
+                          value={userSearch}
+                          onValueChange={setUserSearch}
+                        />
                         <CommandList>
                           {!selectedCenterId ? (
                             <CommandEmpty>Please select a center first</CommandEmpty>
@@ -336,7 +344,7 @@ const Index = () => {
                                 {users.map((user) => (
                                   <CommandItem
                                     key={user.id}
-                                    value={user.name}
+                                    value={`${user.name} ${user.id}`}
                                     onSelect={() => {
                                       form.setValue("userId", user.id, {
                                         shouldValidate: true,

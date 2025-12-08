@@ -84,71 +84,6 @@ export async function graphqlRequest<T = any>(
 }
 
 /**
- * Fetch users (patients) for a specific center
- */
-export async function fetchUsersByCenter<T = any>(centerId: string): Promise<T> {
-  const query = `
-    query Users(
-      $userType: UserType!
-      $centerId: [ObjectID!]!
-      $pagination: CursorPaginationInput
-    ) {
-      users(
-        userType: $userType
-        centerId: $centerId
-        pagination: $pagination
-      ) {
-        data {
-          _id
-          seqNo
-          phone
-          email
-          isActive
-          userType
-          profileData {
-            ... on Patient {
-              firstName
-              lastName
-              dob
-              bio
-              gender
-              profilePicture
-              status
-              category
-              cohort
-              patientType
-              __typename
-            }
-            __typename
-          }
-          __typename
-        }
-        pagination {
-          nextCursor
-          prevCursor
-          hasNext
-          hasPrevious
-          limit
-          __typename
-        }
-        __typename
-      }
-    }
-  `;
-
-  const variables = {
-    userType: 'PATIENT',
-    centerId: [centerId],
-    pagination: {
-      limit: 200,
-      direction: 'FORWARD',
-    },
-  };
-
-  return graphqlRequest(query, variables);
-}
-
-/**
  * Fetch centers
  */
 export async function fetchCenters<T = any>(): Promise<T> {
@@ -290,9 +225,6 @@ export async function searchUsersWithPagination<T = any>(
     },
   };
 
-  console.log('GraphQL Query:', query);
-  console.log('GraphQL Variables:', JSON.stringify(variables, null, 2));
-
   return graphqlRequest(query, variables);
 }
 
@@ -330,7 +262,6 @@ export async function fetchAppointments<T = any>(
 export default {
   client,
   graphqlRequest,
-  fetchUsersByCenter,
   fetchCenters,
   searchUsers,
   searchUsersWithPagination,
