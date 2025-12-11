@@ -755,10 +755,8 @@ export default function TranscriptionInterface({
       "Present Complaint",
       "Previous Consultations",
       "Pain Assessment",
-      "Medical History",
-      "Lifestyle Factors",
+      "History & Diagnostics",
       "Treatment Goals",
-      "Diagnostic Reports",
       "Referral",
     ],
     []
@@ -775,9 +773,17 @@ const derivedCurrentStep = useMemo(() => {
     const progressStep = Math.ceil((normalizedProgress / 100) * totalSteps) || 1;
 
     const currentSectionName = interviewState.current_section || interviewState.section;
-    const sectionIndex = currentSectionName
+    const sectionAliases: Record<string, string> = {
+      "medical history": "History & Diagnostics",
+      "lifestyle factors": "History & Diagnostics",
+      "diagnostic reports": "History & Diagnostics",
+    };
+    const normalizedSectionName = currentSectionName
+      ? sectionAliases[currentSectionName.toLowerCase()] || currentSectionName
+      : "";
+    const sectionIndex = normalizedSectionName
       ? interviewSteps.findIndex(
-          (step) => step.toLowerCase() === currentSectionName.toLowerCase()
+          (step) => step.toLowerCase() === normalizedSectionName.toLowerCase()
         )
       : -1;
     const sectionStep = sectionIndex >= 0 ? sectionIndex + 1 : 0;

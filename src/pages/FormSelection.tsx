@@ -44,7 +44,40 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
         }
         const data = await response.json();
         const forms = data.forms || [];
-        setAvailableForms(forms);
+
+        // Fetch up-to-date progress for each form
+        const formsWithProgress = await Promise.all(
+          forms.map(async (form: Form) => {
+            try {
+              const progressRes = await fetch(
+                getApiUrl(`/api/forms/${form.formId}/progress`)
+              );
+              if (!progressRes.ok) {
+                throw new Error("Failed to fetch progress");
+              }
+              const progressData = await progressRes.json();
+              const progressValue =
+                typeof progressData?.progress === "number"
+                  ? progressData.progress
+                  : typeof progressData?.data?.progress === "number"
+                  ? progressData.data.progress
+                  : form.progress ?? 0;
+
+              return {
+                ...form,
+                progress: progressValue,
+              };
+            } catch (err) {
+              console.error(
+                `Error fetching progress for form ${form.formId}:`,
+                err
+              );
+              return form;
+            }
+          })
+        );
+
+        setAvailableForms(formsWithProgress);
       } catch (err) {
         console.error("Error fetching forms:", err);
         setError(err instanceof Error ? err.message : "Failed to load forms");

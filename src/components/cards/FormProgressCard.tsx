@@ -58,15 +58,13 @@ const styleTokens: Record<
 export function FormProgressCard({
   style = "clean",
   currentStep = 1,
-  totalSteps = 8,
+  totalSteps = 6,
   steps = [
     "Present Complaint",
     "Previous Consultations",
     "Pain Assessment",
-    "Medical History",
-    "Lifestyle Factors",
+    "History & Diagnostics",
     "Treatment Goals",
-    "Diagnostic Reports",
     "Referral",
   ],
 }: FormProgressCardProps) {
