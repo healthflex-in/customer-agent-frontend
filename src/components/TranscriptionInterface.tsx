@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Mic, Save, Trash2, MessageSquareX, Send } from "lucide-react";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
@@ -28,6 +30,7 @@ interface Attachment {
 
 interface InterviewState {
   section: string;
+  current_section?: string; // optional: backend may send current_section
   progress: number;
   missing_fields: string[];
   attachments?: Attachment[];
@@ -73,10 +76,12 @@ export default function TranscriptionInterface({
   const playedAudioMessagesRef = useRef<Set<string>>(new Set());
   const isPlayingAudioRef = useRef<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const sentTranscriptionsRef = useRef<Set<string>>(new Set()); // Track transcriptions that have been sent
   const pendingTranscriptionRef = useRef<string | null>(null); // Track the transcription waiting to be auto-sent
-  const shouldAutoSendOnStopRef = useRef<boolean>(false);
   const sendTranscriptRef = useRef<((text: string) => void) | null>(null);
+  const autoSendTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Track auto-send timeout
+  const hasEditedRef = useRef<boolean>(false); // Track edit state for timeout callback
+  const lastSentTextRef = useRef<string | null>(null); // Track last sent text to prevent duplicates
+  const lastSentTimeRef = useRef<number>(0); // Track when last message was sent
 
   // Initialize audio context
   useEffect(() => {
@@ -94,18 +99,30 @@ export default function TranscriptionInterface({
     setIsListening(false);
     if (transcription && transcription.trim()) {
       const trimmedTranscription = transcription.trim();
+      pendingTranscriptionRef.current = trimmedTranscription;
+      
+      // Clear any existing auto-send timeout to prevent duplicates
+      if (autoSendTimeoutRef.current) {
+        clearTimeout(autoSendTimeoutRef.current);
+        autoSendTimeoutRef.current = null;
+      }
+      
+      // CRITICAL: Update textarea state so the transcription appears
+      // Always show server transcription, reset edit flag
       setCurrentTranscript(trimmedTranscription);
       setEditedTranscript(trimmedTranscription);
       setHasEdited(false);
-      pendingTranscriptionRef.current = trimmedTranscription;
-
-      if (
-        shouldAutoSendOnStopRef.current &&
-        sendTranscriptRef.current &&
-        !isRecordingRef.current
-      ) {
-        sendTranscriptRef.current(trimmedTranscription);
-      }
+      hasEditedRef.current = false; // Reset ref as well
+      
+      // Set auto-send timeout for 2 seconds - ONLY PATH for auto-send
+      autoSendTimeoutRef.current = setTimeout(() => {
+        // Only auto-send if user hasn't edited (check ref for current state)
+        if (!hasEditedRef.current && sendTranscriptRef.current) {
+          sendTranscriptRef.current(trimmedTranscription);
+          // Clear after sending
+          autoSendTimeoutRef.current = null;
+        }
+      }, 2000);
     }
   }, []);
 
@@ -279,11 +296,25 @@ export default function TranscriptionInterface({
     const trimmed = textToSend.trim();
     if (!trimmed) return;
 
-    if (sentTranscriptionsRef.current.has(trimmed)) {
+    // Prevent duplicate sends - if same text was sent within last 2 seconds, ignore
+    const now = Date.now();
+    if (
+      lastSentTextRef.current === trimmed &&
+      now - lastSentTimeRef.current < 2000
+    ) {
+      console.log("Duplicate send prevented:", trimmed);
       return;
     }
 
-    sentTranscriptionsRef.current.add(trimmed);
+    // Clear auto-send timeout if sending manually
+    if (autoSendTimeoutRef.current) {
+      clearTimeout(autoSendTimeoutRef.current);
+      autoSendTimeoutRef.current = null;
+    }
+
+    // Track what we're sending
+    lastSentTextRef.current = trimmed;
+    lastSentTimeRef.current = now;
 
     setMessages((prev) => {
       const lastMessage = prev[prev.length - 1];
@@ -304,14 +335,9 @@ export default function TranscriptionInterface({
     setCurrentTranscript("");
     setEditedTranscript("");
     setHasEdited(false);
+    hasEditedRef.current = false;
     lastTranscriptionRef.current = "";
     pendingTranscriptionRef.current = null;
-    shouldAutoSendOnStopRef.current = false;
-
-    if (sentTranscriptionsRef.current.size > 20) {
-      const transcriptionsArray = Array.from(sentTranscriptionsRef.current);
-      sentTranscriptionsRef.current = new Set(transcriptionsArray.slice(-20));
-    }
   }, [sendTextInput]);
 
   useEffect(() => {
@@ -378,66 +404,19 @@ export default function TranscriptionInterface({
   }, [sendAudio, isConnected]);
 
   // Handle live transcription from Web Speech API
+  // NOTE: Browser transcription is IGNORED - only server transcription is used
   const handleLiveTranscript = useCallback((text: string, isFinal: boolean) => {
-    if (text && text.trim()) {
-      setCurrentTranscript((prev) => {
-        if (isFinal) {
-          // For final transcripts, append to previous final text
-          const trimmedText = text.trim();
-          if (prev && prev.trim()) {
-            // Check if this text is already in the previous (avoid duplicates)
-            const prevLower = prev.toLowerCase();
-            const textLower = trimmedText.toLowerCase();
-            if (prevLower.includes(textLower)) {
-              return prev; // Already have this text
-            }
-            // Append with space
-            return `${prev} ${trimmedText}`;
-          }
-          return trimmedText;
-        } else {
-          // For interim transcripts, show live updates
-          // Combine previous final text with new interim text
-          const trimmedText = text.trim();
-          if (prev && prev.trim()) {
-            // Extract the last final part (before any interim text)
-            // For simplicity, just append interim to the end
-            return `${prev} ${trimmedText}`;
-          }
-          return trimmedText;
-        }
-      });
+    // Completely ignore browser transcription - do not update any state or refs
+    // Only server transcription should populate the textarea
+    // This function is kept for compatibility but does nothing
+    return;
+  }, []);
 
-      // Update the textarea with live transcription (only if user hasn't manually edited)
-      if (!hasEdited) {
-        setEditedTranscript((prev) => {
-          if (isFinal) {
-            // For final transcripts, append to previous
-            const trimmedText = text.trim();
-            if (prev && prev.trim()) {
-              const prevLower = prev.toLowerCase();
-              const textLower = trimmedText.toLowerCase();
-              if (prevLower.includes(textLower)) {
-                return prev; // Already have this text
-              }
-              return `${prev} ${trimmedText}`;
-            }
-            return trimmedText;
-          } else {
-            // For interim transcripts, show live updates in textarea
-            const trimmedText = text.trim();
-            // For interim, we want to show the full accumulated text
-            // The Web Speech API gives us the full sentence so far
-            return trimmedText;
-          }
-        });
-      }
-    }
-  }, [hasEdited]);
-
+  // NOTE: onTranscript is NOT passed - browser transcription is completely disabled
+  // Only server transcription is used
   const { isRecording, audioLevel, startRecording, stopRecording } = useVoiceRecorder({
     onAudioChunk: handleVoiceRecorderChunk,
-    onTranscript: handleLiveTranscript,
+    // onTranscript is intentionally omitted - we only use server transcription
   });
 
   // Connect to WebSocket on mount
@@ -453,6 +432,16 @@ export default function TranscriptionInterface({
       };
     }
   }, [connect]);
+
+  // Cleanup auto-send timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSendTimeoutRef.current) {
+        clearTimeout(autoSendTimeoutRef.current);
+        autoSendTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Start interview or load form once connected and userId is available
   useEffect(() => {
@@ -495,7 +484,6 @@ export default function TranscriptionInterface({
       recordingStartTimeRef.current = Date.now();
       lastChunkTimeRef.current = 0;
       lastTranscriptionRef.current = ""; // Reset to allow new transcriptions
-      shouldAutoSendOnStopRef.current = false;
       
       // Clean up old played audio messages (keep only last 10)
       if (playedAudioMessagesRef.current.size > 10) {
@@ -575,20 +563,13 @@ export default function TranscriptionInterface({
     // Send audio_end message
     sendAudioEnd(duration);
 
-    // After stopping, automatically send the latest transcription when available
-    shouldAutoSendOnStopRef.current = true;
-    const dispatched = dispatchPendingTranscription();
-    if (!dispatched) {
-      // Keep listening card visible until transcription arrives
-      setIsListening(true);
-      // Set a timeout to hide the listening card if transcription doesn't arrive within 5 seconds
-      setTimeout(() => {
-        setIsListening(false);
-      }, 5000);
-    } else {
-      // Transcription was dispatched immediately, hide listening card
+    // Keep listening card visible until server transcription arrives
+    // The transcription will auto-send after 2 seconds via handleTranscription
+    setIsListening(true);
+    // Set a timeout to hide the listening card if transcription doesn't arrive within 5 seconds
+    setTimeout(() => {
       setIsListening(false);
-    }
+    }, 5000);
 
     // Reset chunk tracking
     lastChunkTimeRef.current = 0;
@@ -608,10 +589,39 @@ export default function TranscriptionInterface({
 
   // Handle text change
   const handleTextChange = (value: string) => {
+    // Cancel auto-send if user edits
+    if (autoSendTimeoutRef.current) {
+      clearTimeout(autoSendTimeoutRef.current);
+      autoSendTimeoutRef.current = null;
+    }
+    
     setEditedTranscript(value);
     setCurrentTranscript(value); // Keep them in sync when user edits
-    setHasEdited(value !== (currentTranscript || ""));
+    // Treat any user edit as authoritative so live transcription doesn't overwrite
+    setHasEdited(true);
+    hasEditedRef.current = true; // Update ref as well
   };
+  
+  // Handle textarea click/focus - cancel auto-send if user interacts
+  const handleTextareaClick = useCallback(() => {
+    if (autoSendTimeoutRef.current) {
+      clearTimeout(autoSendTimeoutRef.current);
+      autoSendTimeoutRef.current = null;
+      setHasEdited(true); // Mark as edited to prevent auto-send
+      hasEditedRef.current = true; // Update ref as well
+    }
+  }, []);
+
+  // Handle enter-to-send for manual input (Shift+Enter still makes a newline)
+  const handleTextareaKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        handleSendMessage();
+      }
+    },
+    [handleSendMessage]
+  );
 
   // Handle save chat
   const handleSaveChat = async () => {
@@ -665,7 +675,6 @@ export default function TranscriptionInterface({
     setIsListening(false);
     setIsUnderstanding(false);
     pendingTranscriptionRef.current = null;
-    shouldAutoSendOnStopRef.current = false;
     
     toast({
       title: "Chat Ended",
@@ -755,7 +764,7 @@ export default function TranscriptionInterface({
     []
   );
 
-  const derivedCurrentStep = useMemo(() => {
+const derivedCurrentStep = useMemo(() => {
     if (!interviewState) return 1;
     const totalSteps = interviewSteps.length;
 
@@ -765,9 +774,10 @@ export default function TranscriptionInterface({
     );
     const progressStep = Math.ceil((normalizedProgress / 100) * totalSteps) || 1;
 
-    const sectionIndex = interviewState.section
+    const currentSectionName = interviewState.current_section || interviewState.section;
+    const sectionIndex = currentSectionName
       ? interviewSteps.findIndex(
-          (step) => step.toLowerCase() === interviewState.section.toLowerCase()
+          (step) => step.toLowerCase() === currentSectionName.toLowerCase()
         )
       : -1;
     const sectionStep = sectionIndex >= 0 ? sectionIndex + 1 : 0;
@@ -791,11 +801,11 @@ export default function TranscriptionInterface({
   }, [messages]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-border bg-card/50 backdrop-blur-sm p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">Medical Interview</h1>
+          <h1 className="text-xl font-bold text-foreground">Customer Agent</h1>
           <Badge 
             variant={status === "connected" ? "default" : status === "connecting" ? "secondary" : "destructive"}
             className="rounded-full"
@@ -824,7 +834,7 @@ export default function TranscriptionInterface({
 
       <div className="flex-1 flex overflow-hidden">
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {/* Progress Bar */}
           {interviewState && (
             <div className="border-b border-border bg-muted/50 p-4">
@@ -846,201 +856,203 @@ export default function TranscriptionInterface({
             </div>
           )}
 
-          {/* Live Transcript Display */}
+          {/* Server Transcription Display - Only shows server transcription, not browser transcription */}
           {currentTranscript && (
             <div className="border-b border-border bg-muted/50 p-3">
-              <p className="text-sm text-muted-foreground mb-1">Live Transcript:</p>
+              <p className="text-sm text-muted-foreground mb-1">Server Transcription:</p>
               <p className="text-sm font-medium">{currentTranscript}</p>
             </div>
           )}
 
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground text-lg">Start speaking to begin your conversation</p>
-              </div>
-            ) : (
-              messages.map((message, index) => {
-                const isLastUserMessage = message.role === "user" && index === lastUserMessageIndex;
-                return (
-                  <div key={index} className="space-y-3">
-                    <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-[70%] rounded-2xl p-4 ${
-                          message.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-card text-card-foreground border border-border"
-                        }`}
-                      >
-                        {message.role === "assistant"
-                          ? formatMessageContent(message.content)
-                          : <p className="text-sm">{message.content}</p>}
-                        <span className="text-xs opacity-70 mt-2 block">{message.timestamp.toLocaleTimeString()}</span>
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-6 space-y-4">
+              {messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground text-lg">Start speaking to begin your conversation</p>
+                </div>
+              ) : (
+                messages.map((message, index) => {
+                  const isLastUserMessage = message.role === "user" && index === lastUserMessageIndex;
+                  return (
+                    <div key={index} className="space-y-3">
+                      <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[70%] rounded-2xl p-4 ${
+                            message.role === "user"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-card text-card-foreground border border-border"
+                          }`}
+                        >
+                          {message.role === "assistant"
+                            ? formatMessageContent(message.content)
+                            : <p className="text-sm">{message.content}</p>}
+                          <span className="text-xs opacity-70 mt-2 block">{message.timestamp.toLocaleTimeString()}</span>
+                        </div>
                       </div>
+
+                      {isLastUserMessage && isUnderstanding && (
+                        <div className="flex justify-start">
+                          <UnderstandingCard
+                            style="clean"
+                            headline="Understanding your response..."
+                            caption="Updating the interview context"
+                          />
+                        </div>
+                      )}
                     </div>
-
-                    {isLastUserMessage && isUnderstanding && (
-                      <div className="flex justify-start">
-                        <UnderstandingCard
-                          style="clean"
-                          headline="Understanding your response..."
-                          caption="Updating the interview context"
-                        />
-                      </div>
-                    )}
+                  );
+                })
+              )}
+              {pendingUploadRequest && (
+                <div className="space-y-3 rounded-2xl border border-dashed border-border/70 p-4 bg-background/60">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Upload scans or reports
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {uploadRequestText ||
+                          "Please upload any requested MRI, X-ray, CT scan, or blood reports."}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPendingUploadRequest(false)}
+                      className="text-xs"
+                    >
+                      Dismiss
+                    </Button>
                   </div>
-                );
-              })
-            )}
-            {pendingUploadRequest && (
-              <div className="space-y-3 rounded-2xl border border-dashed border-border/70 p-4 bg-background/60">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      Upload scans or reports
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {uploadRequestText ||
-                        "Please upload any requested MRI, X-ray, CT scan, or blood reports."}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setPendingUploadRequest(false)}
-                    className="text-xs"
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-                <div className="mt-4">
-                  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.jpg,.jpeg,.png,.dicom"
-                    className="hidden"
-                    id="file-upload"
-                    onChange={async (e) => {
-                      const files = e.target.files;
-                      if (!files || files.length === 0) return;
-                      
-                      const formId = currentFormId || interviewState?.formId;
-                      if (!formId) {
-                        toast({
-                          title: "Error",
-                          description: "No form ID available. Please start an interview first.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-
-                      if (!userId) {
-                        toast({
-                          title: "Error",
-                          description: "No user ID available.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-
-                      try {
-                        const formData = new FormData();
-                        for (let i = 0; i < files.length; i++) {
-                          formData.append("files", files[i]);
+                  <div className="mt-4">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png,.dicom"
+                      className="hidden"
+                      id="file-upload"
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files || files.length === 0) return;
+                        
+                        const formId = currentFormId || interviewState?.formId;
+                        if (!formId) {
+                          toast({
+                            title: "Error",
+                            description: "No form ID available. Please start an interview first.",
+                            variant: "destructive",
+                          });
+                          return;
                         }
-                        formData.append("userId", userId);
 
-                        toast({
-                          title: "Uploading files...",
-                          description: `Uploading ${files.length} file(s)...`,
-                        });
+                        if (!userId) {
+                          toast({
+                            title: "Error",
+                            description: "No user ID available.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
 
-                        const response = await fetch(
-                          getApiUrl(`/api/forms/${formId}/attachments`),
-                          {
-                            method: "POST",
-                            body: formData,
+                        try {
+                          const formData = new FormData();
+                          for (let i = 0; i < files.length; i++) {
+                            formData.append("files", files[i]);
                           }
-                        );
+                          formData.append("userId", userId);
 
-                        if (!response.ok) {
-                          const error = await response.json();
-                          throw new Error(error.detail || "Upload failed");
-                        }
+                          toast({
+                            title: "Uploading files...",
+                            description: `Uploading ${files.length} file(s)...`,
+                          });
 
-                        const result = await response.json();
-                        toast({
-                          title: "Success",
-                          description: `Successfully uploaded ${files.length} file(s).`,
-                        });
-
-                        // Close upload UI
-                        setPendingUploadRequest(false);
-                        setUploadRequestText(null);
-
-                        // Update interview state with new attachments and progress
-                        if (result.attachments || result.progress !== undefined) {
-                          setInterviewState((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  attachments:
-                                    result.attachments ||
-                                    prev.attachments ||
-                                    [],
-                                  progress:
-                                    result.progress !== undefined
-                                      ? result.progress
-                                      : prev.progress,
-                                }
-                              : null
+                          const response = await fetch(
+                            getApiUrl(`/api/forms/${formId}/attachments`),
+                            {
+                              method: "POST",
+                              body: formData,
+                            }
                           );
-                        }
 
-                        // Automatically answer the reports question so the
-                        // conversation can move to the next step after a
-                        // successful upload.
-                        if (sendTranscriptRef.current) {
-                          sendTranscriptRef.current(
-                            "Yes, I have uploaded my MRI, X-ray, CT scan, or blood reports related to this issue."
-                          );
-                        }
+                          if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.detail || "Upload failed");
+                          }
 
-                        // Clear file input
-                        e.target.value = "";
-                      } catch (error: any) {
-                        toast({
-                          title: "Upload failed",
-                          description: error.message || "Failed to upload files. Please try again.",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      document.getElementById("file-upload")?.click();
-                    }}
-                  >
-                    Choose Files
-                  </Button>
+                          const result = await response.json();
+                          toast({
+                            title: "Success",
+                            description: `Successfully uploaded ${files.length} file(s).`,
+                          });
+
+                          // Close upload UI
+                          setPendingUploadRequest(false);
+                          setUploadRequestText(null);
+
+                          // Update interview state with new attachments and progress
+                          if (result.attachments || result.progress !== undefined) {
+                            setInterviewState((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    attachments:
+                                      result.attachments ||
+                                      prev.attachments ||
+                                      [],
+                                    progress:
+                                      result.progress !== undefined
+                                        ? result.progress
+                                        : prev.progress,
+                                  }
+                                : null
+                            );
+                          }
+
+                          // Automatically answer the reports question so the
+                          // conversation can move to the next step after a
+                          // successful upload.
+                          if (sendTranscriptRef.current) {
+                            sendTranscriptRef.current(
+                              "Yes, I have uploaded my MRI, X-ray, CT scan, or blood reports related to this issue."
+                            );
+                          }
+
+                          // Clear file input
+                          e.target.value = "";
+                        } catch (error: any) {
+                          toast({
+                            title: "Upload failed",
+                            description: error.message || "Failed to upload files. Please try again.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        document.getElementById("file-upload")?.click();
+                      }}
+                    >
+                      Choose Files
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-            {isListening && (
-              <div className="flex justify-start">
-                <UnderstandingCard
-                  style="clean"
-                  headline="Listening to you..."
-                  caption="Capturing your response"
-                />
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              )}
+              {isListening && (
+                <div className="flex justify-start">
+                  <UnderstandingCard
+                    style="clean"
+                    headline="Listening to you..."
+                    caption="Capturing your response"
+                  />
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
         </div>
 
         {/* Sidebar with Form Status */}
@@ -1099,7 +1111,10 @@ export default function TranscriptionInterface({
             ref={textareaRef}
             value={editedTranscript || currentTranscript}
             onChange={(e) => handleTextChange(e.target.value)}
-            placeholder={isRecording ? "Listening... your speech will appear here..." : "Your transcription will appear here... or type manually"}
+            onClick={handleTextareaClick}
+            onFocus={handleTextareaClick}
+            onKeyDown={handleTextareaKeyDown}
+            placeholder={isRecording ? "Recording... server transcription will appear here..." : "Server transcription will appear here after you stop recording... or type manually"}
             className="min-h-[100px] pr-16 rounded-2xl bg-background border-border resize-none"
             disabled={isModelSpeaking}
           />
@@ -1117,16 +1132,6 @@ export default function TranscriptionInterface({
         {/* Controls */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex gap-2">
-            <Button
-              onClick={handleSaveChat}
-              variant="secondary"
-              size="lg"
-              className="rounded-2xl"
-              disabled={messages.length === 0}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Chat
-            </Button>
             <Button
               onClick={handleClearForm}
               variant="secondary"

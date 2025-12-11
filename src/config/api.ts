@@ -20,11 +20,11 @@ const isDevelopment = import.meta.env.DEV;
 
 // Default URLs based on environment
 const DEFAULT_API_URL = isDevelopment 
-  ? 'http://localhost:8000' 
+  ? 'http://localhost:8082' 
   : 'https://customeragent.stance.health';
 
 const DEFAULT_WS_URL = isDevelopment 
-  ? 'ws://localhost:8000' 
+  ? 'ws://localhost:8082' 
   : 'wss://customeragent.stance.health';
 
 // Export configuration with environment variable overrides

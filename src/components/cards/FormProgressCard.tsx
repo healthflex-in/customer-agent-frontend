@@ -21,37 +21,37 @@ const styleTokens: Record<
 > = {
   glass: {
     container: {
-      background: "rgba(30, 30, 32, 0.7)",
+      background: "hsl(var(--card))",
       backdropFilter: "blur(12px)",
-      border: "1px solid #2D2D33",
-      boxShadow: "none",
+      border: "1px solid hsl(var(--border))",
+      boxShadow: "0 8px 24px hsl(var(--primary) / 0.08)",
     },
-    primaryText: "#FFFFFF",
-    mutedText: "rgba(255, 255, 255, 0.7)",
-    accent: "#FCD34D",
-    barTrack: "rgba(252, 211, 77, 0.2)",
+    primaryText: "hsl(var(--foreground))",
+    mutedText: "hsl(var(--muted-foreground))",
+    accent: "hsl(var(--primary))",
+    barTrack: "hsl(var(--muted))",
   },
   gradient: {
     container: {
-      background: "linear-gradient(135deg, #FCD34D 0%, #F59E0B 100%)",
-      border: "none",
-      boxShadow: "0 8px 32px rgba(252, 211, 77, 0.3)",
+      background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+      border: "1px solid hsl(var(--border))",
+      boxShadow: "0 8px 24px hsl(var(--primary) / 0.15)",
     },
-    primaryText: "#000000",
-    mutedText: "rgba(0, 0, 0, 0.7)",
-    accent: "#000000",
-    barTrack: "rgba(0, 0, 0, 0.15)",
+    primaryText: "hsl(var(--primary-foreground))",
+    mutedText: "hsl(var(--muted-foreground))",
+    accent: "hsl(var(--foreground))",
+    barTrack: "hsl(var(--muted))",
   },
   clean: {
     container: {
-      background: "#1F1F1F",
-      border: "1px solid #3F3F3F",
-      boxShadow: "0 2px 24px rgba(252, 211, 77, 0.1)",
+      background: "hsl(var(--card))",
+      border: "1px solid hsl(var(--border))",
+      boxShadow: "0 2px 18px hsl(var(--primary) / 0.12)",
     },
-    primaryText: "#FFFFFF",
-    mutedText: "rgba(255, 255, 255, 0.7)",
-    accent: "#FCD34D",
-    barTrack: "rgba(252, 211, 77, 0.2)",
+    primaryText: "hsl(var(--foreground))",
+    mutedText: "hsl(var(--muted-foreground))",
+    accent: "hsl(var(--primary))",
+    barTrack: "hsl(var(--muted))",
   },
 };
 
@@ -114,9 +114,9 @@ export function FormProgressCard({
               width: `${progress}%`,
               background:
                 style === "gradient"
-                  ? "rgba(0, 0, 0, 0.6)"
-                  : "linear-gradient(90deg, #FCD34D 0%, #FBBF24 100%)",
-              boxShadow: style === "gradient" ? "none" : "0 0 8px rgba(252, 211, 77, 0.4)",
+                  ? "hsl(var(--foreground) / 0.6)"
+                  : "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+              boxShadow: style === "gradient" ? "none" : "0 0 8px hsl(var(--primary) / 0.25)",
             }}
           />
         </div>
@@ -140,7 +140,7 @@ export function FormProgressCard({
           return (
             <div className="flex items-center gap-3" key={step}>
               {isCompleted ? (
-                <CheckCircle2 size={20} color="#10B981" />
+                <CheckCircle2 size={20} color="hsl(var(--primary))" />
               ) : (
                 <Circle
                   size={20}
@@ -148,8 +148,8 @@ export function FormProgressCard({
                     isCurrent
                       ? tokens.primaryText
                       : style === "gradient"
-                      ? "rgba(0, 0, 0, 0.3)"
-                      : "rgba(255, 255, 255, 0.3)"
+                      ? "hsl(var(--foreground) / 0.3)"
+                      : "hsl(var(--muted-foreground))"
                   }
                   strokeWidth={isCurrent ? 2.5 : 1.5}
                 />
