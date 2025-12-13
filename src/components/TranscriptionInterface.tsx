@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, Save, Trash2, MessageSquareX, Send } from "lucide-react";
+import { Mic, Save, Trash2, MessageSquareX, Send, PanelRight, Circle } from "lucide-react";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { UnderstandingCard } from "@/components/cards/UnderstandingCard";
 import { FormProgressCard } from "@/components/cards/FormProgressCard";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { getApiUrl } from "@/config/api";
 
 interface Message {
@@ -60,6 +61,7 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasConnectedRef = useRef(false);
@@ -845,9 +847,70 @@ const derivedCurrentStep = useMemo(() => {
           {interviewState && (
             <div className="border-b border-border bg-muted/50 p-4">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">{interviewState.progress.toFixed(0)}%</span>
+                <div className="flex justify-between items-center text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-medium">{interviewState.progress.toFixed(0)}%</span>
+                  </div>
+                  {/* Mobile sidebar toggle button */}
+                  <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+                    <SheetTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="md:hidden"
+                        aria-label="Toggle sidebar"
+                      >
+                        <PanelRight className="h-5 w-5" />
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="right" className="w-[340px] sm:w-[380px] p-4 overflow-y-auto">
+                      <div className="space-y-4">
+                        <FormProgressCard
+                          style="clean"
+                          currentStep={derivedCurrentStep}
+                          totalSteps={interviewSteps.length}
+                          steps={interviewSteps}
+                        />
+                        {interviewState.attachments && interviewState.attachments.length > 0 && (
+                          <div className="rounded-2xl border border-border/60 p-4 bg-background/40 space-y-2">
+                            <p className="text-sm font-medium text-foreground">Uploaded documents</p>
+                            <div className="space-y-2">
+                              {interviewState.attachments.map((att) => (
+                                <div key={att.id} className="text-xs text-muted-foreground space-y-1">
+                                  <div className="flex justify-between gap-2">
+                                    <span className="font-semibold text-foreground">{att.label}</span>
+                                    <a
+                                      href={att.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-primary hover:underline"
+                                    >
+                                      View
+                                    </a>
+                                  </div>
+                                  <p>{att.fileName}</p>
+                                  <p className="text-[11px]">
+                                    {new Date(att.uploadedAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {interviewState.missing_fields.length > 0 && (
+                          <div className="rounded-2xl border border-border/60 p-4 bg-background/40">
+                            <p className="text-sm font-medium mb-2 text-foreground">Missing details</p>
+                            <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                              {interviewState.missing_fields.map((field, idx) => (
+                                <li key={idx}>{field}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </SheetContent>
+                  </Sheet>
                 </div>
                 <Progress value={interviewState.progress} className="h-2" />
                 <div className="text-sm text-muted-foreground">
@@ -859,14 +922,6 @@ const derivedCurrentStep = useMemo(() => {
                   )}
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Server Transcription Display - Only shows server transcription, not browser transcription */}
-          {currentTranscript && (
-            <div className="border-b border-border bg-muted/50 p-3">
-              <p className="text-sm text-muted-foreground mb-1">Server Transcription:</p>
-              <p className="text-sm font-medium">{currentTranscript}</p>
             </div>
           )}
 
@@ -1061,9 +1116,9 @@ const derivedCurrentStep = useMemo(() => {
           </ScrollArea>
         </div>
 
-        {/* Sidebar with Form Status */}
+        {/* Sidebar with Form Status - Desktop: always visible (exactly as before), Mobile: hidden (shown via Sheet) */}
         {interviewState && (
-          <div className="w-80 border-l border-border bg-card/50 p-4 overflow-y-auto space-y-4">
+          <div className="hidden md:block w-80 border-l border-border bg-card/50 p-4 overflow-y-auto space-y-4">
             <FormProgressCard
               style="clean"
               currentStep={derivedCurrentStep}
@@ -1111,8 +1166,8 @@ const derivedCurrentStep = useMemo(() => {
       </div>
 
       {/* Transcription Input */}
-      <div className="border-t border-border bg-card/50 backdrop-blur-sm p-6 space-y-4">
-        <div className="relative">
+      <div className="border-t border-border bg-card/50 backdrop-blur-sm px-6 pt-6 pb-6">
+        <div className="relative mb-6">
           <Textarea
             ref={textareaRef}
             value={editedTranscript || currentTranscript}
@@ -1120,8 +1175,8 @@ const derivedCurrentStep = useMemo(() => {
             onClick={handleTextareaClick}
             onFocus={handleTextareaClick}
             onKeyDown={handleTextareaKeyDown}
-            placeholder={isRecording ? "Recording... server transcription will appear here..." : "Server transcription will appear here after you stop recording... or type manually"}
-            className="min-h-[100px] pr-16 rounded-2xl bg-background border-border resize-none"
+            placeholder="Click the mic button to start recording your answer"
+            className="min-h-[60px] max-h-[80px] pr-16 rounded-2xl bg-background border-border resize-none"
             disabled={isModelSpeaking}
           />
           {(editedTranscript.trim() || currentTranscript.trim()) && (
@@ -1136,39 +1191,63 @@ const derivedCurrentStep = useMemo(() => {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex gap-2">
-            <Button
-              onClick={handleClearForm}
-              variant="secondary"
-              size="lg"
-              className="rounded-2xl"
-              disabled={!editedTranscript.trim()}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear
-            </Button>
+        <div className="flex items-center gap-4 relative pt-4">
+          {/* Mobile: Original layout - End Chat on left, mic on right */}
+          <div className="flex gap-2 md:hidden flex-1 items-center">
             <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
               <MessageSquareX className="h-4 w-4 mr-2" />
               End Chat
             </Button>
+            <div className="ml-auto">
+              <Button
+                onClick={handleMicClick}
+                size="lg"
+                disabled={!isConnected || isModelSpeaking}
+                className={`rounded-full w-16 h-16 ${
+                  isRecording 
+                    ? "bg-red-500 hover:bg-red-600" 
+                    : "bg-primary hover:bg-primary/90"
+                }`}
+              >
+                {isRecording ? (
+                  <Circle className="h-8 w-8 fill-white text-white" />
+                ) : (
+                  <Mic className="h-6 w-6" />
+                )}
+              </Button>
+            </div>
           </div>
 
-          {/* Microphone Button */}
-          <Button
-            onClick={handleMicClick}
-            size="lg"
-            disabled={!isConnected || isModelSpeaking}
-            className={`rounded-full w-16 h-16 ${
-              isRecording ? "bg-primary hover:bg-primary/90 p-0" : "bg-primary hover:bg-primary/90"
-            }`}
-          >
-            {isRecording ? (
-              <WaveformAnimation isActive={isRecording} audioLevel={audioLevel} />
-            ) : (
-              <Mic className="h-6 w-6" />
-            )}
-          </Button>
+          {/* Desktop: Centered layout with label */}
+          <div className="hidden md:flex items-center gap-4 w-full">
+            <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
+              <MessageSquareX className="h-4 w-4 mr-2" />
+              End Chat
+            </Button>
+
+            {/* Microphone Button - Centered with Label */}
+            <div className="absolute left-1/2 transform -translate-x-1/2 -translate-y-2 flex flex-col items-center">
+              <Button
+                onClick={handleMicClick}
+                size="lg"
+                disabled={!isConnected || isModelSpeaking}
+                className={`rounded-full w-16 h-16 ${
+                  isRecording 
+                    ? "bg-red-500 hover:bg-red-600" 
+                    : "bg-primary hover:bg-primary/90"
+                }`}
+              >
+                {isRecording ? (
+                  <Circle className="h-8 w-8 fill-white text-white" />
+                ) : (
+                  <Mic className="h-6 w-6" />
+                )}
+              </Button>
+              <p className="text-sm text-muted-foreground mt-1.5 whitespace-nowrap">
+                {isRecording ? "Click to stop recording" : "Click to start recording"}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
