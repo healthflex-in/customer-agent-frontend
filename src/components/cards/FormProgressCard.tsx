@@ -132,8 +132,11 @@ export function FormProgressCard({
       <div className="flex flex-col gap-3">
         {steps.slice(0, safeTotal).map((step, index) => {
           const stepNumber = index + 1;
-          const isCompleted = stepNumber < safeStep;
-          const isCurrent = stepNumber === safeStep;
+          const currentStepFloor = Math.floor(safeStep);
+          // Mark as completed only if we're clearly past this step
+          // The step calculation now prioritizes section names for accuracy
+          const isCompleted = currentStepFloor > stepNumber;
+          const isCurrent = currentStepFloor === stepNumber;
 
           return (
             <div className="flex items-center gap-3" key={step}>

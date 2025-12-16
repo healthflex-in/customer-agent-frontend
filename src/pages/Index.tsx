@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Check, ChevronsUpDown, Building } from "lucide-react";
 import SlideButton from "@/components/SlideButton";
-import FormSelection from "@/pages/FormSelection";
 import TranscriptionInterface from "@/components/TranscriptionInterface";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,9 +48,7 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 const Index = () => {
-  const [showFormSelection, setShowFormSelection] = useState(false);
   const [showConversation, setShowConversation] = useState(false);
-  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [userOpen, setUserOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [centerOpen, setCenterOpen] = useState(false);
@@ -137,18 +134,10 @@ const Index = () => {
 
   const handleLogin = () => {
     if (isFormValid) {
-      setShowFormSelection(true);
+      // Go straight into the interview. The interview component will either
+      // resume the existing form for this user (if any) or start a new one.
+      setShowConversation(true);
     }
-  };
-
-  const handleFormSelected = (formId: string | null) => {
-    setSelectedFormId(formId);
-    setShowFormSelection(false);
-    setShowConversation(true);
-  };
-
-  const handleBackFromFormSelection = () => {
-    setShowFormSelection(false);
   };
 
   // Show interview interface
@@ -157,19 +146,7 @@ const Index = () => {
       <TranscriptionInterface
         userId={selectedUserId}
         userName={selectedUser?.name || ""}
-        initialFormId={selectedFormId}
-      />
-    );
-  }
-
-  // Show form selection page
-  if (showFormSelection && selectedUserId && selectedUser) {
-    return (
-      <FormSelection
-        userId={selectedUserId}
-        userName={selectedUser.name}
-        onFormSelected={handleFormSelected}
-        onBack={handleBackFromFormSelection}
+        initialFormId={null}
       />
     );
   }

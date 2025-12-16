@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, Save, Trash2, MessageSquareX, Send, PanelRight, Circle } from "lucide-react";
+import { Mic, Save, Trash2, MessageSquareX, Send, PanelRight, Square } from "lucide-react";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -85,6 +85,10 @@ export default function TranscriptionInterface({
   const lastSentTextRef = useRef<string | null>(null); // Track last sent text to prevent duplicates
   const lastSentTimeRef = useRef<number>(0); // Track when last message was sent
 
+  // Helper to build localStorage key per user
+  const getStorageKey = (forUserId: string) =>
+    forUserId ? `transcription_session_${forUserId}` : "transcription_session_anonymous";
+
   // Initialize audio context
   useEffect(() => {
     if (typeof window !== "undefined" && !audioContextRef.current) {
@@ -94,6 +98,59 @@ export default function TranscriptionInterface({
       }
     }
   }, []);
+
+  // Keep URL in sync with current user and form so that the outer app / backend
+  // can read userId + formId from query params if needed.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!userId) return;
+
+    const activeFormId = currentFormId || interviewState?.formId;
+    if (!activeFormId) return;
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("userId", userId);
+      url.searchParams.set("formId", activeFormId);
+      window.history.replaceState({}, "", url.toString());
+    } catch (error) {
+      console.error("Failed to update URL with userId and formId:", error);
+    }
+  }, [userId, currentFormId, interviewState]);
+
+  // Hydrate any previously saved session for this user
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      const raw = localStorage.getItem(getStorageKey(userId));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        messages?: Message[];
+        interviewState?: InterviewState | null;
+        formData?: Record<string, any>;
+      };
+
+      if (parsed.messages && Array.isArray(parsed.messages)) {
+        const restoredMessages = parsed.messages.map((m) => ({
+          ...m,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          timestamp: m.timestamp ? new Date((m as any).timestamp) : new Date(),
+        }));
+        setMessages(restoredMessages);
+      }
+      if (parsed.interviewState) {
+        setInterviewState(parsed.interviewState);
+        if (parsed.interviewState.formId) {
+          setCurrentFormId(parsed.interviewState.formId);
+        }
+      }
+      if (parsed.formData) {
+        setFormData(parsed.formData);
+      }
+    } catch (error) {
+      console.error("Failed to restore saved interview session:", error);
+    }
+  }, [userId]);
 
   // Handle real-time transcription from server
   const handleTranscription = useCallback((transcription: string) => {
@@ -148,16 +205,27 @@ export default function TranscriptionInterface({
       setIsUnderstanding(false);
     }
 
-    // Handle attachment request - show upload UI when server requests attachments
+    // Handle attachment request - show/hide upload UI based on server signal
     if (requestAttachment) {
       console.log("[TranscriptionInterface] Attachment request detected:", message);
-      setUploadRequestText(message || "Please upload any MRI, X-ray, CT scan, or blood reports related to this issue.");
+      setUploadRequestText(
+        message ||
+          "Please upload any MRI, X-ray, CT scan, or blood reports related to this issue."
+      );
       setPendingUploadRequest(true);
+    } else {
+      // When the server stops requesting attachments for subsequent messages,
+      // automatically hide the upload card so it doesn't "stick" on screen.
+      setPendingUploadRequest(false);
+      setUploadRequestText(null);
     }
 
     // Update interview state if provided
     if (interviewState) {
       setInterviewState(interviewState);
+      if (interviewState.formId) {
+        setCurrentFormId(interviewState.formId);
+      }
     }
   }, []);
 
@@ -451,12 +519,28 @@ export default function TranscriptionInterface({
       // Small delay to ensure connection is fully established
       const timer = setTimeout(() => {
         // CRITICAL: If loading an existing form, ONLY send load_form (it will handle initialization)
-        // If creating a new form, send start_interview which will create the placeholder
+        // Priority: explicit initialFormId from parent, then any saved formId from a previous session.
+        let savedFormId: string | undefined;
+        if (!initialFormId && userId) {
+          try {
+            const raw = localStorage.getItem(getStorageKey(userId));
+            if (raw) {
+              const parsed = JSON.parse(raw) as { interviewState?: InterviewState | null };
+              savedFormId = parsed.interviewState?.formId;
+            }
+          } catch (error) {
+            console.error("Failed to read saved interview session for formId:", error);
+          }
+        }
+
         if (typeof initialFormId === "string" && initialFormId) {
-          // Loading existing form - ONLY send load_form, don't send start_interview
-          // load_form will initialize the session and load the form data
-          console.log(`Loading existing form: ${initialFormId}`);
+          // Loading existing form chosen explicitly
+          console.log(`Loading existing form from props: ${initialFormId}`);
           sendLoadForm(initialFormId);
+        } else if (savedFormId) {
+          // Resume the last saved form for this user
+          console.log(`Resuming existing form from saved session: ${savedFormId}`);
+          sendLoadForm(savedFormId);
         } else {
           // Creating new form - send start_interview which will create the placeholder
           console.log("Creating new form");
@@ -664,23 +748,47 @@ export default function TranscriptionInterface({
   // Note: Transcript is cleared in handleSendMessage after sending
   // No need to clear it here based on messages
 
-  // Handle end chat
+  // Persist current interview session so it can be resumed later
+  const persistSession = () => {
+    if (!userId) return;
+    try {
+      const payload = {
+        messages,
+        interviewState,
+        formData,
+        timestamp: new Date().toISOString(),
+      };
+      localStorage.setItem(getStorageKey(userId), JSON.stringify(payload));
+    } catch (error) {
+      console.error("Failed to persist interview session:", error);
+    }
+  };
+
+  // Handle end chat (pause & continue later)
   const handleEndChat = () => {
     if (isRecording) stopRecording();
+
+    // Submit existing session to backend if possible
+    if (userId && sendEndSession) {
+      try {
+        sendEndSession(userId);
+      } catch (error) {
+        console.error("Failed to send end_session message:", error);
+      }
+    }
+
+    // Persist current state locally
+    persistSession();
+
+    // Disconnect from WebSocket but keep UI state visible
     disconnect();
-    setMessages([]);
-    setCurrentTranscript("");
-    setEditedTranscript("");
-    setHasEdited(false);
-    setInterviewState(null);
-    setFormData({});
     setIsListening(false);
     setIsUnderstanding(false);
     pendingTranscriptionRef.current = null;
-    
+
     toast({
-      title: "Chat Ended",
-      description: "Your conversation has been cleared.",
+      title: "Chat Paused",
+      description: "Your current interview has been saved. You can continue from here later.",
     });
   };
 
@@ -764,18 +872,27 @@ export default function TranscriptionInterface({
     []
   );
 
-const derivedCurrentStep = useMemo(() => {
+  const derivedCurrentStep = useMemo(() => {
     if (!interviewState) return 1;
     const totalSteps = interviewSteps.length;
 
+    // If backend reports interview as fully complete, always show final step
     const normalizedProgress = Math.min(
       Math.max(interviewState.progress, 0),
       100
     );
-    const progressStep = Math.ceil((normalizedProgress / 100) * totalSteps) || 1;
+    if (normalizedProgress >= 100) {
+      return totalSteps;
+    }
 
     const currentSectionName = interviewState.current_section || interviewState.section;
     const sectionAliases: Record<string, string> = {
+      "present complaint": "Present Complaint",
+      "previous consultations": "Previous Consultations",
+      "pain assessment": "Pain Assessment",
+      "history & diagnostics": "History & Diagnostics",
+      "treatment goals": "Treatment Goals",
+      "referral": "Referral",
       "medical history": "History & Diagnostics",
       "lifestyle factors": "History & Diagnostics",
       "diagnostic reports": "History & Diagnostics",
@@ -783,20 +900,22 @@ const derivedCurrentStep = useMemo(() => {
     const normalizedSectionName = currentSectionName
       ? sectionAliases[currentSectionName.toLowerCase()] || currentSectionName
       : "";
+    
+    // Prioritize section-based detection as it's more accurate
     const sectionIndex = normalizedSectionName
       ? interviewSteps.findIndex(
           (step) => step.toLowerCase() === normalizedSectionName.toLowerCase()
         )
       : -1;
-    const sectionStep = sectionIndex >= 0 ? sectionIndex + 1 : 0;
-
-    const derivedStep = Math.max(progressStep, sectionStep || 0);
-
-    if (normalizedProgress >= 100) {
-      return totalSteps;
+    
+    if (sectionIndex >= 0) {
+      // If we found a matching section, use it (add 1 because index is 0-based)
+      return sectionIndex + 1;
     }
 
-    return Math.min(Math.max(derivedStep, 1), totalSteps);
+    // Fallback to progress-based calculation if section name doesn't match
+    const progressStep = Math.ceil((normalizedProgress / 100) * totalSteps) || 1;
+    return Math.min(Math.max(progressStep, 1), totalSteps);
   }, [interviewState, interviewSteps]);
 
   const lastUserMessageIndex = useMemo(() => {
@@ -813,7 +932,7 @@ const derivedCurrentStep = useMemo(() => {
       {/* Header */}
       <div className="border-b border-border bg-card/50 backdrop-blur-sm p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">Customer Agent</h1>
+          <h1 className="text-xl font-bold text-foreground">User Interview</h1>
           <Badge 
             variant={status === "connected" ? "default" : status === "connecting" ? "secondary" : "destructive"}
             className="rounded-full"
@@ -830,12 +949,10 @@ const derivedCurrentStep = useMemo(() => {
             {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Disconnected"}
           </Badge>
         </div>
-        {userId && userName && (
+        {userName && (
           <div className="mt-2 flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">User:</span>
             <span className="font-medium text-foreground">{userName}</span>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-muted-foreground">ID: {userId}</span>
           </div>
         )}
       </div>
@@ -1192,11 +1309,11 @@ const derivedCurrentStep = useMemo(() => {
 
         {/* Controls */}
         <div className="flex items-center gap-4 relative pt-4">
-          {/* Mobile: Original layout - End Chat on left, mic on right */}
+          {/* Mobile: Original layout - Pause on left, mic on right */}
           <div className="flex gap-2 md:hidden flex-1 items-center">
             <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
               <MessageSquareX className="h-4 w-4 mr-2" />
-              End Chat
+              Pause &amp; Continue Later
             </Button>
             <div className="ml-auto">
               <Button
@@ -1210,7 +1327,7 @@ const derivedCurrentStep = useMemo(() => {
                 }`}
               >
                 {isRecording ? (
-                  <Circle className="h-8 w-8 fill-white text-white" />
+                  <Square className="h-8 w-8 fill-white text-white" />
                 ) : (
                   <Mic className="h-6 w-6" />
                 )}
@@ -1222,7 +1339,7 @@ const derivedCurrentStep = useMemo(() => {
           <div className="hidden md:flex items-center gap-4 w-full">
             <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
               <MessageSquareX className="h-4 w-4 mr-2" />
-              End Chat
+              Pause &amp; Continue Later
             </Button>
 
             {/* Microphone Button - Centered with Label */}
@@ -1238,7 +1355,7 @@ const derivedCurrentStep = useMemo(() => {
                 }`}
               >
                 {isRecording ? (
-                  <Circle className="h-8 w-8 fill-white text-white" />
+                  <Square className="h-8 w-8 fill-white text-white" />
                 ) : (
                   <Mic className="h-6 w-6" />
                 )}
