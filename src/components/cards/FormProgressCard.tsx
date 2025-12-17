@@ -7,6 +7,16 @@ interface FormProgressCardProps {
   currentStep?: number;
   totalSteps?: number;
   steps?: string[];
+  // Optional backend-driven progress (0–100). When provided, this overrides
+  // the step-based bar calculation so UI matches API progress exactly.
+  overallProgress?: number;
+  // Optional per-section completion coming from the backend. When provided,
+  // tick/untick status is driven purely by isComplete instead of position.
+  stepStatus?: Array<{
+    name?: string;
+    section?: string;
+    isComplete?: boolean;
+  }>;
 }
 
 const styleTokens: Record<
@@ -67,11 +77,22 @@ export function FormProgressCard({
     "Treatment Goals",
     "Referral",
   ],
+  overallProgress,
+  stepStatus,
 }: FormProgressCardProps) {
   const tokens = styleTokens[style];
   const safeTotal = Math.max(1, totalSteps);
   const safeStep = Math.min(Math.max(currentStep, 1), safeTotal);
-  const progress = (safeStep / safeTotal) * 100;
+  const progress =
+    typeof overallProgress === "number"
+      ? Math.min(Math.max(overallProgress, 0), 100)
+      : (safeStep / safeTotal) * 100;
+
+  const normalizedStepStatus =
+    stepStatus?.map((s) => ({
+      key: (s.name || s.section || "").toLowerCase(),
+      isComplete: !!s.isComplete,
+    })) ?? [];
 
   return (
     <div
@@ -133,10 +154,29 @@ export function FormProgressCard({
         {steps.slice(0, safeTotal).map((step, index) => {
           const stepNumber = index + 1;
           const currentStepFloor = Math.floor(safeStep);
-          // Mark as completed only if we're clearly past this step
-          // The step calculation now prioritizes section names for accuracy
-          const isCompleted = currentStepFloor > stepNumber;
-          const isCurrent = currentStepFloor === stepNumber;
+          // If backend stepStatus is provided, drive ticks purely from it.
+          const statusFromBackend = normalizedStepStatus.find(
+            (s) => s.key && s.key === step.toLowerCase()
+          );
+
+          let isCompleted: boolean;
+          let isCurrent: boolean;
+
+          if (statusFromBackend) {
+            isCompleted = statusFromBackend.isComplete;
+            // Treat non-completed backend steps as "current" for styling.
+            isCurrent = !statusFromBackend.isComplete;
+          } else if (normalizedStepStatus.length > 0) {
+            // When we have backend data but this particular label wasn't found,
+            // default to "not completed".
+            isCompleted = false;
+            isCurrent = false;
+          } else {
+            // Legacy behaviour: derive from currentStep position.
+            // Mark as completed only if we're clearly past this step.
+            isCompleted = currentStepFloor > stepNumber;
+            isCurrent = currentStepFloor === stepNumber;
+          }
 
           return (
             <div className="flex items-center gap-3" key={step}>

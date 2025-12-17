@@ -36,6 +36,16 @@ interface InterviewState {
   missing_fields: string[];
   attachments?: Attachment[];
   formId?: string;
+   // Optional backend-driven per-section progress metadata
+  // (shape is intentionally loose to stay compatible with API changes)
+  sectionProgress?: {
+    progress?: number;
+    steps?: Array<{
+      name?: string;
+      section?: string;
+      isComplete?: boolean;
+    }>;
+  };
 }
 
 interface TranscriptionInterfaceProps {
@@ -988,6 +998,11 @@ export default function TranscriptionInterface({
                           currentStep={derivedCurrentStep}
                           totalSteps={interviewSteps.length}
                           steps={interviewSteps}
+                          overallProgress={
+                            interviewState.sectionProgress?.progress ??
+                            interviewState.progress
+                          }
+                          stepStatus={interviewState.sectionProgress?.steps}
                         />
                         {interviewState.attachments && interviewState.attachments.length > 0 && (
                           <div className="rounded-2xl border border-border/60 p-4 bg-background/40 space-y-2">
@@ -1241,6 +1256,11 @@ export default function TranscriptionInterface({
               currentStep={derivedCurrentStep}
               totalSteps={interviewSteps.length}
               steps={interviewSteps}
+              overallProgress={
+                interviewState.sectionProgress?.progress ??
+                interviewState.progress
+              }
+              stepStatus={interviewState.sectionProgress?.steps}
             />
             {interviewState.attachments && interviewState.attachments.length > 0 && (
               <div className="rounded-2xl border border-border/60 p-4 bg-background/40 space-y-2">
