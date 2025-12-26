@@ -281,17 +281,20 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  const sendStartInterview = useCallback((userId: string) => {
+  const sendStartInterview = useCallback((userId: string, formId?: string) => {
+    console.log(`[sendStartInterview] Called with userId=${userId}, formId=${formId}, wsState=${wsRef.current?.readyState}`);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: "start_interview",
-          userId: userId,
-          timestamp: Date.now() / 1000,
-        })
-      );
+      const message = {
+        type: "start_interview",
+        userId: userId,
+        formId: formId || null,
+        timestamp: Date.now() / 1000,
+      };
+      console.log(`[sendStartInterview] Sending message:`, message);
+      wsRef.current.send(JSON.stringify(message));
       return true;
     }
+    console.log(`[sendStartInterview] WebSocket not open, state=${wsRef.current?.readyState}`);
     return false;
   }, []);
 

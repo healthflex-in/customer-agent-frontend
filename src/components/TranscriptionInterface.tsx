@@ -525,43 +525,43 @@ export default function TranscriptionInterface({
 
   // Start interview or load form once connected and userId is available
   useEffect(() => {
+    console.log(`[TranscriptionInterface] useEffect triggered: isConnected=${isConnected}, userId=${userId}, initialFormId=${initialFormId}`);
     if (isConnected && userId) {
       // Small delay to ensure connection is fully established
       const timer = setTimeout(() => {
-        // CRITICAL: If loading an existing form, ONLY send load_form (it will handle initialization)
-        // Priority: explicit initialFormId from parent, then any saved formId from a previous session.
-        let savedFormId: string | undefined;
-        if (!initialFormId && userId) {
+        // Determine which formId to use (if any)
+        // Priority: explicit initialFormId from parent (URL), then any saved formId from a previous session.
+        let formIdToUse: string | undefined = initialFormId || undefined;
+        
+        if (!formIdToUse && userId) {
           try {
             const raw = localStorage.getItem(getStorageKey(userId));
             if (raw) {
               const parsed = JSON.parse(raw) as { interviewState?: InterviewState | null };
-              savedFormId = parsed.interviewState?.formId;
+              formIdToUse = parsed.interviewState?.formId;
             }
           } catch (error) {
             console.error("Failed to read saved interview session for formId:", error);
           }
         }
 
-        if (typeof initialFormId === "string" && initialFormId) {
-          // Loading existing form chosen explicitly
-          console.log(`Loading existing form from props: ${initialFormId}`);
-          sendLoadForm(initialFormId);
-        } else if (savedFormId) {
-          // Resume the last saved form for this user
-          console.log(`Resuming existing form from saved session: ${savedFormId}`);
-          sendLoadForm(savedFormId);
+        // Always use start_interview (not load_form) - the backend will handle resume logic
+        if (formIdToUse) {
+          console.log(`[TranscriptionInterface] Starting/resuming interview for user ${userId} with form ${formIdToUse}`);
         } else {
-          // Creating new form - send start_interview which will create the placeholder
-          console.log("Creating new form");
-          if (sendStartInterview) {
-            sendStartInterview(userId);
-          }
+          console.log(`[TranscriptionInterface] Starting new interview for user ${userId}`);
         }
-      }, 200);
+        
+        if (sendStartInterview) {
+          const result = sendStartInterview(userId, formIdToUse);
+          console.log(`[TranscriptionInterface] sendStartInterview returned: ${result}`);
+        } else {
+          console.error(`[TranscriptionInterface] sendStartInterview is undefined!`);
+        }
+      }, 500); // Increased delay to 500ms
       return () => clearTimeout(timer);
     }
-  }, [isConnected, userId, initialFormId, sendStartInterview, sendLoadForm]);
+  }, [isConnected, userId, initialFormId, sendStartInterview]);
 
   // Auto-scroll messages
   useEffect(() => {

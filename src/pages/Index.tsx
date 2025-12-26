@@ -49,6 +49,8 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 const Index = () => {
   const [showConversation, setShowConversation] = useState(false);
+  const [urlFormId, setUrlFormId] = useState<string | null>(null);
+  const [urlUserId, setUrlUserId] = useState<string | null>(null);
   const [userOpen, setUserOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [centerOpen, setCenterOpen] = useState(false);
@@ -69,6 +71,38 @@ const Index = () => {
 
   const selectedCenterId = form.watch("centerId");
   const selectedUserId = form.watch("userId");
+
+  // Read userId and formId from URL query parameters on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUserId = urlParams.get("userId");
+    const urlFormIdParam = urlParams.get("formId");
+    const urlCenterId = urlParams.get("centerId");
+
+    // Backend always uses FRM-01 as the fixed form ID
+    // So we ignore any formId from URL and always use FRM-01
+    const FIXED_FORM_ID = "FRM-01";
+
+    // If userId is in URL (with or without formId), skip selection and go directly to interview
+    if (paramUserId) {
+      console.log(`[Index] URL params: userId=${paramUserId}, using fixed formId=${FIXED_FORM_ID}`);
+      setUrlFormId(FIXED_FORM_ID);
+      setUrlUserId(paramUserId);
+      // Set form values synchronously
+      form.setValue("userId", paramUserId, { shouldValidate: true });
+      if (urlCenterId) {
+        form.setValue("centerId", urlCenterId, { shouldValidate: true });
+      }
+      
+      // If both userId and formId are in URL, go directly to interview
+      // If only userId, still go to interview (backend will use FRM-01)
+      if (urlFormIdParam || paramUserId) {
+        setShowConversation(true);
+      }
+    }
+  }, [form]);
 
   // Fetch centers on mount
   useEffect(() => {
@@ -142,11 +176,14 @@ const Index = () => {
 
   // Show interview interface
   if (showConversation) {
+    // Use urlUserId if available (from URL params), otherwise use selectedUserId (from form)
+    const userIdToUse = urlUserId || selectedUserId;
+    console.log(`[Index] Showing conversation with userId=${userIdToUse}, formId=${urlFormId}`);
     return (
       <TranscriptionInterface
-        userId={selectedUserId}
+        userId={userIdToUse}
         userName={selectedUser?.name || ""}
-        initialFormId={null}
+        initialFormId={urlFormId || null}
       />
     );
   }
