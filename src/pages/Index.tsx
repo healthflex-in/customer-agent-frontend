@@ -195,7 +195,7 @@ const Index = () => {
 
       <div className="max-w-md w-full space-y-6 lg:space-y-8 relative z-10 animate-fade-in-up">
         <div className="space-y-4 text-center">
-          <h1 className="text-3xl lg:text-4xl font-bold text-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="font-display text-3xl lg:text-4xl font-bold text-foreground tracking-tight">
             Medical Interview
           </h1>
           <p className="text-base lg:text-lg text-muted-foreground">

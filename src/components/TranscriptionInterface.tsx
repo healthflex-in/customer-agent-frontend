@@ -9,11 +9,11 @@ import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { UnderstandingCard } from "@/components/cards/UnderstandingCard";
 import { FormProgressCard } from "@/components/cards/FormProgressCard";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { getApiUrl } from "@/config/api";
+import SegmentedProgress from "@/components/voice/SegmentedProgress";
 
 interface Message {
   role: "user" | "assistant";
@@ -942,7 +942,7 @@ export default function TranscriptionInterface({
       {/* Header */}
       <div className="border-b border-border bg-card/50 backdrop-blur-sm p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">User Interview</h1>
+          <h1 className="font-display text-xl font-bold text-foreground tracking-tight">User Interview</h1>
           <Badge 
             variant={status === "connected" ? "default" : status === "connecting" ? "secondary" : "destructive"}
             className="rounded-full"
@@ -974,10 +974,18 @@ export default function TranscriptionInterface({
           {interviewState && (
             <div className="border-b border-border bg-muted/50 p-4">
               <div className="space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-medium">{interviewState.progress.toFixed(0)}%</span>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <SegmentedProgress
+                      steps={interviewSteps}
+                      currentStep={derivedCurrentStep}
+                      stepStatus={interviewState.sectionProgress?.steps}
+                      overallProgress={
+                        interviewState.sectionProgress?.progress ??
+                        interviewState.progress
+                      }
+                      activeLabel={interviewState.section}
+                    />
                   </div>
                   {/* Mobile sidebar toggle button */}
                   <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -985,7 +993,7 @@ export default function TranscriptionInterface({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="md:hidden"
+                        className="md:hidden mt-5 flex-shrink-0"
                         aria-label="Toggle sidebar"
                       >
                         <PanelRight className="h-5 w-5" />
@@ -1044,15 +1052,11 @@ export default function TranscriptionInterface({
                     </SheetContent>
                   </Sheet>
                 </div>
-                <Progress value={interviewState.progress} className="h-2" />
-                <div className="text-sm text-muted-foreground">
-                  Section: {interviewState.section}
-                  {interviewState.missing_fields.length > 0 && (
-                    <span className="ml-2">
-                      • Missing: {interviewState.missing_fields.join(", ")}
-                    </span>
-                  )}
-                </div>
+                {interviewState.missing_fields.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Missing: {interviewState.missing_fields.join(", ")}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -41,7 +41,8 @@ export default function WaveformAnimation({ isActive, audioLevel = 0.5 }: Wavefo
         const x = i * barWidth + barWidth / 4;
         const y = (height - barHeight) / 2;
 
-        ctx.fillStyle = `hsl(142, 76%, ${56 + Math.sin(Date.now() / 1000 + i) * 10}%)`;
+        // Neon Green from Stance brand palette (DDFE71 ≈ hsl(74, 99%, 72%))
+        ctx.fillStyle = `hsl(74, 99%, ${68 + Math.sin(Date.now() / 1000 + i) * 8}%)`;
         ctx.fillRect(x, y, barWidth / 2, barHeight);
       });
 

@@ -1,78 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/*
+ * Stance Health design system
+ *
+ * Primary palette: Neon Green #DDFE71, Washed Stone #ADDCEC, Steel Blue #132644,
+ *                  Dark Grey #2F2F32, Light Smoke #ECECEC, White #FFFFFF.
+ * Secondary palette: Cosmic Latte #FBF9ED, Lava 20 #F8DBD3, Sun #FE7833,
+ *                    Purple 20 #E4DAFC, Mint 200 #203A37.
+ *
+ * Typography: Unbounded (Bold / Extra-Bold) for display headlines,
+ *             DM Sans (Regular / SemiBold / Light) for body and UI.
+ */
 
 @layer base {
   :root {
-    /* Light palette inspired by the provided dashboard */
-    --background: 210 17% 97%; /* light gray page background */
-    --foreground: 210 10% 16%; /* dark charcoal text */
-    --card: 0 0% 100%; /* white cards */
-    --card-foreground: 210 10% 16%;
+    /* Surfaces */
+    --background: 0 0% 100%;            /* White */
+    --foreground: 240 3% 19%;           /* Dark Grey #2F2F32 */
+    --card: 0 0% 100%;
+    --card-foreground: 240 3% 19%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 10% 16%;
-    --primary: 141 54% 47%; /* vibrant green for buttons/highlights */
+    --popover-foreground: 240 3% 19%;
+
+    /* Primary = Steel Blue */
+    --primary: 217 56% 17%;             /* Steel Blue #132644 */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 141 54% 42%;
-    --secondary: 210 14% 92%; /* light gray surfaces */
-    --secondary-foreground: 210 10% 16%;
-    --muted: 210 12% 88%; /* table rows / subtle fills */
-    --muted-foreground: 210 6% 40%;
-    --accent: 30 92% 55%; /* warm accent (optional for alerts) */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 55%;
+    --primary-hover: 217 56% 13%;
+
+    /* Accent = Neon Green (vibrant brand color) */
+    --accent: 74 99% 72%;               /* Neon Green #DDFE71 */
+    --accent-foreground: 240 3% 19%;    /* Dark Grey on green */
+
+    /* Secondary = Washed Stone (soft blue surface) */
+    --secondary: 0 0% 93%;              /* Light Smoke */
+    --secondary-foreground: 240 3% 19%;
+
+    /* Muted = Light Smoke */
+    --muted: 0 0% 93%;
+    --muted-foreground: 240 3% 40%;
+
+    /* Destructive / warm = Sun */
+    --destructive: 20 99% 60%;          /* Sun #FE7833 */
     --destructive-foreground: 0 0% 100%;
-    --border: 210 12% 85%;
-    --input: 210 12% 85%;
-    --ring: 141 54% 47%;
+
+    /* Borders + inputs */
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 217 56% 17%;
+
     --radius: 1rem;
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    --glow: 0 0 20px hsl(141 54% 47% / 0.25);
-    --glow-strong: 0 0 30px hsl(141 54% 47% / 0.4);
-    --sidebar-background: 171 29% 14%; /* deep green sidebar */
+    --glow: 0 0 20px hsl(74 99% 72% / 0.35);
+    --glow-strong: 0 0 30px hsl(74 99% 72% / 0.55);
+
+    /* Sidebar (uses Steel Blue navy) */
+    --sidebar-background: 217 56% 17%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 141 54% 47%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 171 20% 18%;
+    --sidebar-primary: 74 99% 72%;
+    --sidebar-primary-foreground: 240 3% 19%;
+    --sidebar-accent: 217 56% 22%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 171 15% 22%;
-    --sidebar-ring: 141 54% 47%;
+    --sidebar-border: 217 35% 28%;
+    --sidebar-ring: 74 99% 72%;
   }
 
   .dark {
-    --background: 210 15% 10%;
+    --background: 217 56% 9%;           /* deep Steel Blue */
     --foreground: 0 0% 96%;
-    --card: 210 15% 12%;
+    --card: 217 50% 13%;
     --card-foreground: 0 0% 96%;
-    --popover: 210 15% 12%;
+    --popover: 217 50% 13%;
     --popover-foreground: 0 0% 96%;
-    --primary: 141 54% 47%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 141 54% 42%;
-    --secondary: 210 12% 18%;
+    --primary: 74 99% 72%;              /* Neon Green pops on dark */
+    --primary-foreground: 240 3% 12%;
+    --primary-hover: 74 99% 65%;
+    --secondary: 217 35% 18%;
     --secondary-foreground: 0 0% 96%;
-    --muted: 210 10% 22%;
+    --muted: 217 35% 18%;
     --muted-foreground: 0 0% 70%;
-    --accent: 30 92% 55%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 55%;
+    --accent: 74 99% 72%;
+    --accent-foreground: 240 3% 12%;
+    --destructive: 20 99% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 210 12% 24%;
-    --input: 210 12% 24%;
-    --ring: 141 54% 47%;
-    --sidebar-background: 171 29% 14%;
+    --border: 217 30% 22%;
+    --input: 217 30% 22%;
+    --ring: 74 99% 72%;
+    --sidebar-background: 217 56% 9%;
     --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 141 54% 47%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 171 20% 18%;
+    --sidebar-primary: 74 99% 72%;
+    --sidebar-primary-foreground: 240 3% 12%;
+    --sidebar-accent: 217 35% 18%;
     --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 171 15% 22%;
-    --sidebar-ring: 141 54% 47%;
+    --sidebar-border: 217 30% 22%;
+    --sidebar-ring: 74 99% 72%;
   }
 }
 
@@ -81,8 +106,22 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .font-display,
+  h1.font-display,
+  h2.font-display {
+    font-family: 'Unbounded', 'DM Sans', system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -129,11 +168,11 @@ All colors MUST be HSL.
 
     0%,
     100% {
-      box-shadow: 0 0 20px hsl(68 97% 72% / 0.4);
+      box-shadow: 0 0 20px hsl(74 99% 72% / 0.4);
     }
 
     50% {
-      box-shadow: 0 0 40px hsl(68 97% 72% / 0.8);
+      box-shadow: 0 0 40px hsl(74 99% 72% / 0.8);
     }
   }
 

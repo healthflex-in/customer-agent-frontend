@@ -12,10 +12,15 @@ interface FormProgressCardProps {
   overallProgress?: number;
   // Optional per-section completion coming from the backend. When provided,
   // tick/untick status is driven purely by isComplete instead of position.
+  // filledFields/totalFields are also sent by the backend and let us show
+  // "3/4" next to sections that are only partially complete — so the user
+  // sees WHY a section is unticked.
   stepStatus?: Array<{
     name?: string;
     section?: string;
     isComplete?: boolean;
+    filledFields?: number;
+    totalFields?: number;
   }>;
 }
 
@@ -92,6 +97,10 @@ export function FormProgressCard({
     stepStatus?.map((s) => ({
       key: (s.name || s.section || "").toLowerCase(),
       isComplete: !!s.isComplete,
+      filledFields:
+        typeof s.filledFields === "number" ? s.filledFields : undefined,
+      totalFields:
+        typeof s.totalFields === "number" ? s.totalFields : undefined,
     })) ?? [];
 
   return (
@@ -206,6 +215,25 @@ export function FormProgressCard({
               >
                 {step}
               </span>
+              {!isCompleted &&
+                statusFromBackend &&
+                typeof statusFromBackend.filledFields === "number" &&
+                typeof statusFromBackend.totalFields === "number" &&
+                statusFromBackend.totalFields > 0 && (
+                  <span
+                    style={{
+                      color: tokens.mutedText,
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      marginLeft: "auto",
+                    }}
+                    title={`${statusFromBackend.filledFields} of ${statusFromBackend.totalFields} fields filled`}
+                  >
+                    {statusFromBackend.filledFields}/
+                    {statusFromBackend.totalFields}
+                  </span>
+                )}
             </div>
           );
         })}
