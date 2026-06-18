@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KeyboardEvent } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, Save, Trash2, MessageSquareX, Send, PanelRight, Square } from "lucide-react";
+import { Mic, Save, Trash2, Send, Square, Paperclip } from "lucide-react";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { UnderstandingCard } from "@/components/cards/UnderstandingCard";
-import { FormProgressCard } from "@/components/cards/FormProgressCard";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { getApiUrl } from "@/config/api";
+import { getApiUrl, getWsUrl } from "@/config/api";
 import SegmentedProgress from "@/components/voice/SegmentedProgress";
 
 interface Message {
@@ -71,10 +70,8 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const hasConnectedRef = useRef(false);
   const handleStartRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -95,9 +92,6 @@ export default function TranscriptionInterface({
   const lastSentTextRef = useRef<string | null>(null); // Track last sent text to prevent duplicates
   const lastSentTimeRef = useRef<number>(0); // Track when last message was sent
 
-  // Helper to build localStorage key per user
-  const getStorageKey = (forUserId: string) =>
-    forUserId ? `transcription_session_${forUserId}` : "transcription_session_anonymous";
 
   // Initialize audio context
   useEffect(() => {
@@ -111,56 +105,7 @@ export default function TranscriptionInterface({
 
   // Keep URL in sync with current user and form so that the outer app / backend
   // can read userId + formId from query params if needed.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!userId) return;
 
-    const activeFormId = currentFormId || interviewState?.formId;
-    if (!activeFormId) return;
-
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("userId", userId);
-      url.searchParams.set("formId", activeFormId);
-      window.history.replaceState({}, "", url.toString());
-    } catch (error) {
-      console.error("Failed to update URL with userId and formId:", error);
-    }
-  }, [userId, currentFormId, interviewState]);
-
-  // Hydrate any previously saved session for this user
-  useEffect(() => {
-    if (!userId) return;
-    try {
-      const raw = localStorage.getItem(getStorageKey(userId));
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as {
-        messages?: Message[];
-        interviewState?: InterviewState | null;
-        formData?: Record<string, any>;
-      };
-
-      if (parsed.messages && Array.isArray(parsed.messages)) {
-        const restoredMessages = parsed.messages.map((m) => ({
-          ...m,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          timestamp: m.timestamp ? new Date((m as any).timestamp) : new Date(),
-        }));
-        setMessages(restoredMessages);
-      }
-      if (parsed.interviewState) {
-        setInterviewState(parsed.interviewState);
-        if (parsed.interviewState.formId) {
-          setCurrentFormId(parsed.interviewState.formId);
-        }
-      }
-      if (parsed.formData) {
-        setFormData(parsed.formData);
-      }
-    } catch (error) {
-      console.error("Failed to restore saved interview session:", error);
-    }
-  }, [userId]);
 
   // Handle real-time transcription from server
   const handleTranscription = useCallback((transcription: string) => {
@@ -358,18 +303,35 @@ export default function TranscriptionInterface({
     }
   }, []);
 
+  const handleTranscriptionStable = useCallback((transcription: string) => {
+    handleTranscription(transcription);
+  }, [handleTranscription]);
+
+  const handleAttachmentRequest = useCallback((messageText?: string) => {
+    setUploadRequestText(messageText || "Please upload any MRI, X-ray, CT scan, or blood reports related to this issue.");
+    setPendingUploadRequest(true);
+  }, []);
+
+  const handleChatHistory = useCallback((historyMessages: { role: "user" | "assistant"; content: string; timestamp: string }[]) => {
+    const restored = historyMessages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+    }));
+    setMessages(restored);
+  }, []);
+
   const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendStartNewForm, sendLoadForm, isConnected } = useWebSocket({
+    serverUrl: userId ? getWsUrl(`/ws/${userId}`) : undefined,
     onMessage: handleWebSocketMessage,
-    onTranscription: (transcription: string) => handleTranscription(transcription),
+    onTranscription: handleTranscriptionStable,
     onAudioStart: handleAudioStart,
     onAudioChunk: handleAudioChunk,
     onError: handleWebSocketError,
     onStatusChange: handleWebSocketStatusChange,
     onFormLoaded: handleFormLoaded,
-    onAttachmentRequest: (messageText?: string) => {
-      setUploadRequestText(messageText || "Please upload any MRI, X-ray, CT scan, or blood reports related to this issue.");
-      setPendingUploadRequest(true);
-    },
+    onAttachmentRequest: handleAttachmentRequest,
+    onChatHistory: handleChatHistory,
   });
 
   const sendTranscript = useCallback((textToSend: string) => {
@@ -499,19 +461,17 @@ export default function TranscriptionInterface({
     // onTranscript is intentionally omitted - we only use server transcription
   });
 
-  // Connect to WebSocket on mount
+  // Keep a ref to the latest connect so the mount effect doesn't re-run on re-renders
+  const connectRef = useRef(connect);
+  useEffect(() => { connectRef.current = connect; }, [connect]);
+
+  // Connect to WebSocket once on mount — empty deps so re-renders never cancel the timer
   useEffect(() => {
-    if (!hasConnectedRef.current) {
-      hasConnectedRef.current = true;
-      const timer = setTimeout(() => {
-        connect();
-      }, 100);
-      
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-  }, [connect]);
+    const timer = setTimeout(() => {
+      connectRef.current();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Cleanup auto-send timeout on unmount
   useEffect(() => {
@@ -531,19 +491,7 @@ export default function TranscriptionInterface({
       const timer = setTimeout(() => {
         // Determine which formId to use (if any)
         // Priority: explicit initialFormId from parent (URL), then any saved formId from a previous session.
-        let formIdToUse: string | undefined = initialFormId || undefined;
-        
-        if (!formIdToUse && userId) {
-          try {
-            const raw = localStorage.getItem(getStorageKey(userId));
-            if (raw) {
-              const parsed = JSON.parse(raw) as { interviewState?: InterviewState | null };
-              formIdToUse = parsed.interviewState?.formId;
-            }
-          } catch (error) {
-            console.error("Failed to read saved interview session for formId:", error);
-          }
-        }
+        const formIdToUse: string | undefined = initialFormId || undefined;
 
         // Always use start_interview (not load_form) - the backend will handle resume logic
         if (formIdToUse) {
@@ -758,21 +706,6 @@ export default function TranscriptionInterface({
   // Note: Transcript is cleared in handleSendMessage after sending
   // No need to clear it here based on messages
 
-  // Persist current interview session so it can be resumed later
-  const persistSession = () => {
-    if (!userId) return;
-    try {
-      const payload = {
-        messages,
-        interviewState,
-        formData,
-        timestamp: new Date().toISOString(),
-      };
-      localStorage.setItem(getStorageKey(userId), JSON.stringify(payload));
-    } catch (error) {
-      console.error("Failed to persist interview session:", error);
-    }
-  };
 
   // Handle end chat (pause & continue later)
   const handleEndChat = () => {
@@ -786,9 +719,6 @@ export default function TranscriptionInterface({
         console.error("Failed to send end_session message:", error);
       }
     }
-
-    // Persist current state locally
-    persistSession();
 
     // Disconnect from WebSocket but keep UI state visible
     disconnect();
@@ -930,467 +860,243 @@ export default function TranscriptionInterface({
 
   const lastUserMessageIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].role === "user") {
-        return i;
-      }
+      if (messages[i].role === "user") return i;
+    }
+    return -1;
+  }, [messages]);
+
+  const lastAssistantMessageIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "assistant") return i;
     }
     return -1;
   }, [messages]);
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="border-b border-border bg-card/50 backdrop-blur-sm p-4">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-xl font-bold text-foreground tracking-tight">User Interview</h1>
-          <Badge 
-            variant={status === "connected" ? "default" : status === "connecting" ? "secondary" : "destructive"}
-            className="rounded-full"
-          >
-            <div
-              className={`w-2 h-2 rounded-full mr-2 ${
-                status === "connected"
-                  ? "bg-primary-foreground animate-pulse"
-                  : status === "connecting"
-                  ? "bg-muted-foreground animate-pulse"
-                  : "bg-destructive-foreground"
-              }`}
-            />
-            {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Disconnected"}
-          </Badge>
-        </div>
-        {userName && (
-          <div className="mt-2 flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">User:</span>
-            <span className="font-medium text-foreground">{userName}</span>
-          </div>
-        )}
-      </div>
+    <div className="h-screen bg-stance-steel flex flex-col overflow-hidden text-white">
+      {/* Premium Header */}
+      <header className="bg-stance-steel/80 backdrop-blur-md z-10">
+        <div className="max-w-5xl mx-auto px-6 py-5 flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img
+                src="/assets/brand/logo-white.png"
+                alt="Stance Health"
+                className="h-12 w-auto max-w-[160px]"
+              />
+              <div className="h-4 w-px bg-white/20 hidden sm:block" />
+              <Badge
+                variant="outline"
+                className="rounded-sm border-0 text-stance-steel bg-stance-neon font-display text-[9px] uppercase tracking-widest px-3 py-1 font-bold"
+              >
+                Live Interview
+              </Badge>
+            </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          {/* Progress Bar */}
-          {interviewState && (
-            <div className="border-b border-border bg-muted/50 p-4">
-              <div className="space-y-2">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <SegmentedProgress
-                      steps={interviewSteps}
-                      currentStep={derivedCurrentStep}
-                      stepStatus={interviewState.sectionProgress?.steps}
-                      overallProgress={
-                        interviewState.sectionProgress?.progress ??
-                        interviewState.progress
-                      }
-                      activeLabel={interviewState.section}
-                    />
-                  </div>
-                  {/* Mobile sidebar toggle button */}
-                  <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-                    <SheetTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="md:hidden mt-5 flex-shrink-0"
-                        aria-label="Toggle sidebar"
-                      >
-                        <PanelRight className="h-5 w-5" />
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent side="right" className="w-[340px] sm:w-[380px] p-4 overflow-y-auto">
-                      <div className="space-y-4">
-                        <FormProgressCard
-                          style="clean"
-                          currentStep={derivedCurrentStep}
-                          totalSteps={interviewSteps.length}
-                          steps={interviewSteps}
-                          overallProgress={
-                            interviewState.sectionProgress?.progress ??
-                            interviewState.progress
-                          }
-                          stepStatus={interviewState.sectionProgress?.steps}
-                        />
-                        {interviewState.attachments && interviewState.attachments.length > 0 && (
-                          <div className="rounded-2xl border border-border/60 p-4 bg-background/40 space-y-2">
-                            <p className="text-sm font-medium text-foreground">Uploaded documents</p>
-                            <div className="space-y-2">
-                              {interviewState.attachments.map((att) => (
-                                <div key={att.id} className="text-xs text-muted-foreground space-y-1">
-                                  <div className="flex justify-between gap-2">
-                                    <span className="font-semibold text-foreground">{att.label}</span>
-                                    <a
-                                      href={att.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-primary hover:underline"
-                                    >
-                                      View
-                                    </a>
-                                  </div>
-                                  <p>{att.fileName}</p>
-                                  <p className="text-[11px]">
-                                    {new Date(att.uploadedAt).toLocaleString()}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {interviewState.missing_fields.length > 0 && (
-                          <div className="rounded-2xl border border-border/60 p-4 bg-background/40">
-                            <p className="text-sm font-medium mb-2 text-foreground">Missing details</p>
-                            <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-                              {interviewState.missing_fields.map((field, idx) => (
-                                <li key={idx}>{field}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-                </div>
-                {interviewState.missing_fields.length > 0 && (
-                  <div className="text-sm text-muted-foreground">
-                    Missing: {interviewState.missing_fields.join(", ")}
-                  </div>
-                )}
+            {status !== "connected" && (
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "h-2 w-2 rounded-full",
+                  status === "connecting" ? "bg-yellow-400 animate-pulse" : "bg-red-500"
+                )} />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-stance-stone">
+                  {status === "connecting" ? "Connecting..." : "Offline"}
+                </span>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Chat Messages */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="p-6 space-y-4">
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground text-lg">Start speaking to begin your conversation</p>
-                </div>
-              ) : (
-                messages.map((message, index) => {
-                  const isLastUserMessage = message.role === "user" && index === lastUserMessageIndex;
-                  return (
-                    <div key={index} className="space-y-3">
-                      <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`max-w-[70%] rounded-2xl p-4 ${
-                            message.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-card text-card-foreground border border-border"
-                          }`}
-                        >
-                          {message.role === "assistant"
-                            ? formatMessageContent(message.content)
-                            : <p className="text-sm">{message.content}</p>}
-                          <span className="text-xs opacity-70 mt-2 block">{message.timestamp.toLocaleTimeString()}</span>
-                        </div>
-                      </div>
-
-                      {isLastUserMessage && isUnderstanding && (
-                        <div className="flex justify-start">
-                          <UnderstandingCard
-                            style="clean"
-                            headline="Understanding your response..."
-                            caption="Updating the interview context"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-              {pendingUploadRequest && (
-                <div className="space-y-3 rounded-2xl border border-dashed border-border/70 p-4 bg-background/60">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Upload scans or reports
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {uploadRequestText ||
-                          "Please upload any requested MRI, X-ray, CT scan, or blood reports."}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPendingUploadRequest(false)}
-                      className="text-xs"
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                  <div className="mt-4">
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.dicom"
-                      className="hidden"
-                      id="file-upload"
-                      onChange={async (e) => {
-                        const files = e.target.files;
-                        if (!files || files.length === 0) return;
-                        
-                        const formId = currentFormId || interviewState?.formId;
-                        if (!formId) {
-                          toast({
-                            title: "Error",
-                            description: "No form ID available. Please start an interview first.",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-
-                        if (!userId) {
-                          toast({
-                            title: "Error",
-                            description: "No user ID available.",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-
-                        try {
-                          const formData = new FormData();
-                          for (let i = 0; i < files.length; i++) {
-                            formData.append("files", files[i]);
-                          }
-                          formData.append("userId", userId);
-
-                          toast({
-                            title: "Uploading files...",
-                            description: `Uploading ${files.length} file(s)...`,
-                          });
-
-                          const response = await fetch(
-                            getApiUrl(`/api/forms/${formId}/attachments`),
-                            {
-                              method: "POST",
-                              body: formData,
-                            }
-                          );
-
-                          if (!response.ok) {
-                            const error = await response.json();
-                            throw new Error(error.detail || "Upload failed");
-                          }
-
-                          const result = await response.json();
-                          toast({
-                            title: "Success",
-                            description: `Successfully uploaded ${files.length} file(s).`,
-                          });
-
-                          // Close upload UI
-                          setPendingUploadRequest(false);
-                          setUploadRequestText(null);
-
-                          // Update interview state with new attachments and progress
-                          if (result.attachments || result.progress !== undefined) {
-                            setInterviewState((prev) =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    attachments:
-                                      result.attachments ||
-                                      prev.attachments ||
-                                      [],
-                                    progress:
-                                      result.progress !== undefined
-                                        ? result.progress
-                                        : prev.progress,
-                                  }
-                                : null
-                            );
-                          }
-
-                          // Automatically answer the reports question so the
-                          // conversation can move to the next step after a
-                          // successful upload.
-                          if (sendTranscriptRef.current) {
-                            sendTranscriptRef.current(
-                              "Yes, I have uploaded my MRI, X-ray, CT scan, or blood reports related to this issue."
-                            );
-                          }
-
-                          // Clear file input
-                          e.target.value = "";
-                        } catch (error: any) {
-                          toast({
-                            title: "Upload failed",
-                            description: error.message || "Failed to upload files. Please try again.",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        document.getElementById("file-upload")?.click();
-                      }}
-                    >
-                      Choose Files
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {isListening && (
-                <div className="flex justify-start">
-                  <UnderstandingCard
-                    style="clean"
-                    headline="Listening to you..."
-                    caption="Capturing your response"
-                  />
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Sidebar with Form Status - Desktop: always visible (exactly as before), Mobile: hidden (shown via Sheet) */}
-        {interviewState && (
-          <div className="hidden md:block w-80 border-l border-border bg-card/50 p-4 overflow-y-auto space-y-4">
-            <FormProgressCard
-              style="clean"
-              currentStep={derivedCurrentStep}
-              totalSteps={interviewSteps.length}
+          {interviewState && (
+            <SegmentedProgress
               steps={interviewSteps}
+              currentStep={derivedCurrentStep}
+              stepStatus={interviewState.sectionProgress?.steps}
               overallProgress={
                 interviewState.sectionProgress?.progress ??
                 interviewState.progress
               }
-              stepStatus={interviewState.sectionProgress?.steps}
+              activeLabel={interviewState.section}
             />
-            {interviewState.attachments && interviewState.attachments.length > 0 && (
-              <div className="rounded-2xl border border-border/60 p-4 bg-background/40 space-y-2">
-                <p className="text-sm font-medium text-foreground">Uploaded documents</p>
-                <div className="space-y-2">
-                  {interviewState.attachments.map((att) => (
-                    <div key={att.id} className="text-xs text-muted-foreground space-y-1">
-                      <div className="flex justify-between gap-2">
-                        <span className="font-semibold text-foreground">{att.label}</span>
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          View
-                        </a>
-                      </div>
-                      <p>{att.fileName}</p>
-                      <p className="text-[11px]">
-                        {new Date(att.uploadedAt).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {interviewState.missing_fields.length > 0 && (
-              <div className="rounded-2xl border border-border/60 p-4 bg-background/40">
-                <p className="text-sm font-medium mb-2 text-foreground">Missing details</p>
-                <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-                  {interviewState.missing_fields.map((field, idx) => (
-                    <li key={idx}>{field}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Transcription Input */}
-      <div className="border-t border-border bg-card/50 backdrop-blur-sm px-6 pt-6 pb-6">
-        <div className="relative mb-6">
-          <Textarea
-            ref={textareaRef}
-            value={editedTranscript || currentTranscript}
-            onChange={(e) => handleTextChange(e.target.value)}
-            onClick={handleTextareaClick}
-            onFocus={handleTextareaClick}
-            onKeyDown={handleTextareaKeyDown}
-            placeholder="Click the mic button to start recording your answer"
-            className="min-h-[60px] max-h-[80px] pr-16 rounded-2xl bg-background border-border resize-none"
-            disabled={isModelSpeaking}
-          />
-          {(editedTranscript.trim() || currentTranscript.trim()) && (
-            <Button
-              onClick={handleSendMessage}
-              size="icon"
-              className="absolute bottom-3 right-3 rounded-full bg-primary hover:bg-primary/90"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
           )}
         </div>
+      </header>
 
-        {/* Controls */}
-        <div className="flex items-center gap-4 relative pt-4">
-          {/* Mobile: Original layout - Pause on left, mic on right */}
-          <div className="flex gap-2 md:hidden flex-1 items-center">
-            <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
-              <MessageSquareX className="h-4 w-4 mr-2" />
-              Pause &amp; Continue Later
-            </Button>
-            <div className="ml-auto">
-              <Button
-                onClick={handleMicClick}
-                size="lg"
-                disabled={!isConnected || isModelSpeaking}
-                className={`rounded-full w-16 h-16 ${
-                  isRecording 
-                    ? "bg-red-500 hover:bg-red-600" 
-                    : "bg-primary hover:bg-primary/90"
-                }`}
-              >
-                {isRecording ? (
-                  <Square className="h-8 w-8 fill-white text-white" />
-                ) : (
-                  <Mic className="h-6 w-6" />
-                )}
-              </Button>
-            </div>
+      <main className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Background Accents */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-full pointer-events-none overflow-hidden opacity-10">
+          <div className="absolute -top-24 -left-24 w-96 h-96 bg-stance-neon rounded-full blur-[128px]" />
+          <div className="absolute top-1/2 -right-24 w-64 h-64 bg-stance-stone rounded-full blur-[96px]" />
+        </div>
+
+        <ScrollArea className="flex-1 min-h-0 bg-[#F0F3F8] shadow-[0_-8px_32px_rgba(0,0,0,0.2)] rounded-t-[32px] md:rounded-t-[48px] mt-2">
+          <div className="max-w-3xl mx-auto px-6 py-10 space-y-8 min-h-[calc(100vh-200px)]">
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center text-center space-y-5 pt-20 pb-8">
+                <div className="h-20 w-20 rounded-3xl bg-stance-steel flex items-center justify-center mb-2 shadow-lg">
+                  <Mic className="h-9 w-9 text-stance-neon" />
+                </div>
+                <div className="space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-stance-steel/40">Stance Health · Live Interview</p>
+                  <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-stance-steel">Ready to begin?</h2>
+                </div>
+                <p className="text-stance-grey/60 max-w-xs text-sm md:text-base leading-relaxed">Start speaking or type your response below. Your consultation is being recorded in real-time.</p>
+              </div>
+            ) : (
+              messages.map((message, index) => {
+                const isLastUserMessage = message.role === "user" && index === lastUserMessageIndex;
+                const isLastAssistant = message.role === "assistant" && index === lastAssistantMessageIndex;
+                const isAssistant = message.role === "assistant";
+                const showUploadPrompt = isLastAssistant && pendingUploadRequest;
+
+                return (
+                  <div key={index} className={cn(
+                    "flex flex-col space-y-2",
+                    isAssistant ? "items-start" : "items-end"
+                  )}>
+                    <div className={cn(
+                      "max-w-[85%] rounded-2xl p-5 md:p-6 shadow-sm transition-all duration-300",
+                      isAssistant
+                        ? "bg-stance-steel text-white rounded-tl-none border border-white/5"
+                        : "bg-white text-stance-grey rounded-tr-none border border-stance-neon/50 shadow-sm"
+                    )}>
+                      {isAssistant
+                        ? formatMessageContent(message.content)
+                        : <p className="text-sm leading-relaxed">{message.content}</p>}
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-stance-grey/40 px-1">
+                      {isAssistant ? "Stance Assistant" : "You"} • {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+
+                    {/* Inline upload prompt under the triggering assistant message */}
+                    {showUploadPrompt && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          id="file-upload-inline"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files || files.length === 0) return;
+                            const formId = currentFormId || interviewState?.formId;
+                            if (!formId || !userId) return;
+                            try {
+                              const fd = new FormData();
+                              for (let i = 0; i < files.length; i++) fd.append("files", files[i]);
+                              fd.append("userId", userId);
+                              toast({ title: "Uploading...", description: `Uploading ${files.length} file(s).` });
+                              const res = await fetch(getApiUrl(`/api/forms/${formId}/attachments`), { method: "POST", body: fd });
+                              if (!res.ok) throw new Error("Upload failed");
+                              const result = await res.json();
+                              toast({ title: "Upload Complete", description: "Documents added to your profile." });
+                              setPendingUploadRequest(false);
+                              if (result.attachments || result.progress !== undefined) {
+                                setInterviewState(prev => prev ? { ...prev, attachments: result.attachments || prev.attachments || [], progress: result.progress !== undefined ? result.progress : prev.progress } : null);
+                              }
+                              if (sendTranscriptRef.current) sendTranscriptRef.current("I have uploaded my clinical documents.");
+                            } catch {
+                              toast({ title: "Upload failed", variant: "destructive" });
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+                        <Button
+                          onClick={() => document.getElementById("file-upload-inline")?.click()}
+                          size="sm"
+                          className="bg-stance-neon text-stance-steel hover:bg-stance-neon/90 font-bold text-xs px-4 h-9 rounded-xl gap-2"
+                        >
+                          <Paperclip className="h-3.5 w-3.5" />
+                          Upload Documents
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPendingUploadRequest(false)}
+                          className="text-stance-grey/40 hover:text-stance-grey/70 text-xs h-9 px-3 rounded-xl"
+                        >
+                          Skip
+                        </Button>
+                      </div>
+                    )}
+
+                    {isLastUserMessage && isUnderstanding && (
+                      <div className="w-full mt-4 flex justify-start">
+                        <UnderstandingCard
+                          style="clean"
+                          headline="Processing response..."
+                          caption="Our engine is mapping your physical indicators."
+                          className="bg-stance-steel/5 border-none shadow-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+
+            {isListening && (
+              <div className="flex justify-start">
+                <UnderstandingCard
+                  style="clean"
+                  headline="Listening..."
+                  caption="Speak clearly. We're capturing every detail."
+                  className="bg-stance-neon/5 border-stance-neon/20 text-stance-grey"
+                />
+              </div>
+            )}
+
+            <div ref={messagesEndRef} className="h-32" />
           </div>
+        </ScrollArea>
+      </main>
 
-          {/* Desktop: Centered layout with label */}
-          <div className="hidden md:flex items-center gap-4 w-full">
-            <Button onClick={handleEndChat} variant="destructive" size="lg" className="rounded-2xl">
-              <MessageSquareX className="h-4 w-4 mr-2" />
-              Pause &amp; Continue Later
-            </Button>
-
-            {/* Microphone Button - Centered with Label */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 -translate-y-2 flex flex-col items-center">
-              <Button
-                onClick={handleMicClick}
-                size="lg"
-                disabled={!isConnected || isModelSpeaking}
-                className={`rounded-full w-16 h-16 ${
-                  isRecording 
-                    ? "bg-red-500 hover:bg-red-600" 
-                    : "bg-primary hover:bg-primary/90"
-                }`}
-              >
-                {isRecording ? (
-                  <Square className="h-8 w-8 fill-white text-white" />
-                ) : (
-                  <Mic className="h-6 w-6" />
-                )}
-              </Button>
-              <p className="text-sm text-muted-foreground mt-1.5 whitespace-nowrap">
-                {isRecording ? "Click to stop recording" : "Click to start recording"}
-              </p>
+      {/* Persistent Controls */}
+      <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Textarea
+                ref={textareaRef}
+                value={editedTranscript || currentTranscript}
+                onChange={(e) => handleTextChange(e.target.value)}
+                onClick={handleTextareaClick}
+                onFocus={handleTextareaClick}
+                onKeyDown={handleTextareaKeyDown}
+                placeholder="Record your response or type here..."
+                className="min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border border-stance-steel/10 shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:text-stance-grey/30 leading-snug"
+                disabled={isModelSpeaking}
+              />
+              {(editedTranscript.trim() || currentTranscript.trim()) && (
+                <Button
+                  onClick={handleSendMessage}
+                  size="icon"
+                  className="absolute right-3 bottom-3 h-8 w-8 rounded-xl bg-stance-steel text-white hover:bg-stance-grey transition-all shadow-md"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
             </div>
+
+            <Button
+              onClick={handleMicClick}
+              disabled={!isConnected || isModelSpeaking}
+              className={cn(
+                "rounded-full w-14 h-14 flex-shrink-0 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95",
+                isRecording
+                  ? "bg-red-500 hover:bg-red-600 shadow-red-500/30"
+                  : "bg-stance-steel hover:bg-stance-steel/90 shadow-stance-steel/30 ring-2 ring-stance-neon ring-offset-2 ring-offset-[#F0F3F8]"
+              )}
+            >
+              {isRecording ? (
+                <Square className="h-5 w-5 fill-white text-white animate-pulse" />
+              ) : (
+                <Mic className="h-5 w-5 text-white" />
+              )}
+            </Button>
           </div>
         </div>
       </div>
     </div>
   );
 }
+

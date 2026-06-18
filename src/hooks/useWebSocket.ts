@@ -15,8 +15,14 @@ interface InterviewState {
   formId?: string;
 }
 
+interface ChatHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
 interface WebSocketMessage {
-  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded";
+  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
@@ -29,6 +35,7 @@ interface WebSocketMessage {
   data?: string; // base64 encoded audio
   is_last?: boolean;
   timestamp?: number;
+  messages?: ChatHistoryMessage[]; // for chat_history type
 }
 
 interface UseWebSocketOptions {
@@ -42,10 +49,11 @@ interface UseWebSocketOptions {
   onFormSelectionRequired?: (forms: any[]) => void;
   onFormLoaded?: (formData: Record<string, any>, interviewState?: InterviewState) => void;
   onAttachmentRequest?: (messageText?: string) => void;
+  onChatHistory?: (messages: ChatHistoryMessage[]) => void;
 }
 
 export default function useWebSocket({
-  serverUrl = getWsUrl(),
+  serverUrl,
   onMessage,
   onTranscription,
   onAudioStart,
@@ -55,6 +63,7 @@ export default function useWebSocket({
   onFormSelectionRequired,
   onFormLoaded,
   onAttachmentRequest,
+  onChatHistory,
 }: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -64,15 +73,19 @@ export default function useWebSocket({
   const audioBuffersRef = useRef<Map<string, Uint8Array>>(new Map());
 
   const connect = useCallback(async () => {
+    if (!serverUrl) {
+      return;
+    }
+
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
       return;
     }
-    
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
-    
+
     if (wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
@@ -84,7 +97,7 @@ export default function useWebSocket({
       onStatusChange?.("connecting");
 
       // Establish WebSocket connection directly (server handles session creation)
-      const ws = new WebSocket(`${serverUrl}/ws`);
+      const ws = new WebSocket(serverUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -175,6 +188,10 @@ export default function useWebSocket({
                 audioBuffersRef.current.delete(data.message_id);
               }
             }
+          } else if (data.type === "chat_history") {
+            if (data.messages && onChatHistory) {
+              onChatHistory(data.messages);
+            }
           } else if (data.type === "error") {
             onError?.(new Error(data.text || "Unknown error"));
           }
@@ -211,7 +228,7 @@ export default function useWebSocket({
       onStatusChange?.("disconnected");
       onError?.(error as Error);
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect
