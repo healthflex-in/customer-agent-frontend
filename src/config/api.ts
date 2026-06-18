@@ -15,14 +15,14 @@ const DEV_BACKEND = 'http://13.204.235.217:8000';
 const API_BASE = isDev ? DEV_BACKEND : '';
 
 // WebSocket must be an absolute URL with the right protocol.
-// In production, derive it from the page origin (https → wss, http → ws).
+// Vercel cannot proxy WebSocket connections (only HTTP rewrites work), so in
+// production we connect directly to the EC2 nginx domain that has wss:// configured.
 function resolveWsBase(): string {
+  // Allow override via env var (e.g. for staging/other environments)
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
   if (isDev) return 'ws://13.204.235.217:8000';
-  if (typeof window !== 'undefined') {
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${window.location.host}`;
-  }
-  return 'ws://localhost:8080';
+  // Production: bypass Vercel — connect directly to the EC2 backend
+  return 'wss://customeragent.stance.health';
 }
 
 export const API_CONFIG = {
