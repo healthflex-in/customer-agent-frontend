@@ -338,11 +338,11 @@ export default function TranscriptionInterface({
     const trimmed = textToSend.trim();
     if (!trimmed) return;
 
-    // Prevent duplicate sends - if same text was sent within last 2 seconds, ignore
+    // Prevent duplicate sends — 8s window covers slow LLM + reconnect retries
     const now = Date.now();
     if (
       lastSentTextRef.current === trimmed &&
-      now - lastSentTimeRef.current < 2000
+      now - lastSentTimeRef.current < 8000
     ) {
       console.log("Duplicate send prevented:", trimmed);
       return;
