@@ -98,10 +98,10 @@ export default function SlideButton({ onSlideComplete, text, disabled = false }:
       {/* Background text */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <span
-          className="text-lg font-medium transition-opacity duration-300"
+          className="text-sm font-bold uppercase tracking-widest transition-opacity duration-300"
           style={{
             opacity: Math.max(0, 1 - position / (maxPosition * 0.5)),
-            color: "hsl(var(--muted-foreground))"
+            color: "rgba(255,255,255,0.7)"
           }}
         >
           {text}

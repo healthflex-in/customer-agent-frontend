@@ -185,7 +185,7 @@ const Index = () => {
 
         {/* Logo — centered above heading */}
         <div className="flex justify-center">
-          <img src="/assets/brand/logo-white.png" alt="Stance Health" className="h-12 w-auto max-w-[180px]" />
+          <img src="/assets/brand/logo-white.png" alt="Stance Health" className="h-16 w-auto max-w-[220px]" />
         </div>
 
         {/* Title */}
@@ -222,7 +222,7 @@ const Index = () => {
                           disabled={isLoadingCenters}
                           className={cn(
                             "w-full justify-between h-12 text-sm bg-white/8 border-white/15 text-white hover:bg-white/12 hover:text-white",
-                            !field.value && "text-white/40"
+                            !field.value && "text-white/55"
                           )}
                         >
                           {isLoadingCenters
@@ -301,7 +301,7 @@ const Index = () => {
                           disabled={!selectedCenterId || isLoadingUsers}
                           className={cn(
                             "w-full justify-between h-12 text-sm bg-white/8 border-white/15 text-white hover:bg-white/12 hover:text-white",
-                            !field.value && "text-white/40"
+                            !field.value && "text-white/55"
                           )}
                         >
                           {!selectedCenterId
