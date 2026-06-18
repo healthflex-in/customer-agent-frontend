@@ -72,23 +72,14 @@ const Index = () => {
   const selectedCenterId = form.watch("centerId");
   const selectedUserId = form.watch("userId");
 
-  // Read userId and formId from URL query parameters on mount
+  // Read userId and centerId from URL query parameters on mount (deep-link support)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const urlParams = new URLSearchParams(window.location.search);
-
-    // Backend always uses FRM-01 as the fixed form ID
     const FIXED_FORM_ID = "FRM-01";
-
-    // Default IDs for testing and bypass
-    const DEFAULT_CENTER_ID = "67fe35f25e42152fb5185a5e";
-    const DEFAULT_USER_ID = "683d733f28d5260e768ef6a4";
-
     const paramUserId = urlParams.get("userId");
     const urlCenterId = urlParams.get("centerId");
-
-    console.log(`[Index] Initializing session: userId=${paramUserId}, centerId=${urlCenterId}, formId=${FIXED_FORM_ID}`);
 
     if (paramUserId && urlCenterId) {
       setUrlFormId(FIXED_FORM_ID);
@@ -96,26 +87,11 @@ const Index = () => {
       form.setValue("userId", paramUserId, { shouldValidate: true });
       form.setValue("centerId", urlCenterId, { shouldValidate: true });
       setShowConversation(true);
-    } else if (!paramUserId && !urlCenterId) {
-      // Auto-login with defaults if none provided
-      console.log(`[Index] No IDs in URL, using defaults: userId=${DEFAULT_USER_ID}, centerId=${DEFAULT_CENTER_ID}`);
-      setUrlFormId(FIXED_FORM_ID);
-      setUrlUserId(DEFAULT_USER_ID);
-      form.setValue("userId", DEFAULT_USER_ID, { shouldValidate: true });
-      form.setValue("centerId", DEFAULT_CENTER_ID, { shouldValidate: true });
-      setShowConversation(true);
     }
   }, [form]);
 
   // Fetch centers on mount
   useEffect(() => {
-    // Skip fetching centers if we are in auto-bypass mode
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.get("userId") && !urlParams.get("centerId")) {
-      console.log("[Index] Skipping center fetch due to auto-bypass");
-      return;
-    }
-
     const loadCenters = async () => {
       try {
         setIsLoadingCenters(true);
