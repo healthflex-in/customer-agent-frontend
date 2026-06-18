@@ -42,6 +42,10 @@ export default function SegmentedProgress({
     const key = step.toLowerCase();
     const explicit = completionByName[key];
 
+    // Enforce sequential progress: a segment after the active index can never
+    // appear green — it would create a non-contiguous / "random" green segment.
+    if (i > activeIdx) return "pending" as const;
+
     if (typeof explicit === "boolean") {
       if (explicit) return "complete" as const;
       return i === activeIdx ? ("active" as const) : ("pending" as const);
