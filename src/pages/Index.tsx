@@ -175,31 +175,46 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 lg:p-6 relative overflow-hidden">
-      {/* Background gradient effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5 pointer-events-none" />
+    <div className="min-h-screen bg-stance-steel flex flex-col relative overflow-hidden">
+      {/* Background glow accents */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-stance-neon/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 -right-32 w-80 h-80 bg-stance-stone/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="max-w-md w-full space-y-6 lg:space-y-8 relative z-10 animate-fade-in-up">
-        <div className="space-y-4 text-center">
-          <h1 className="font-display text-3xl lg:text-4xl font-bold text-foreground tracking-tight">
-            Medical Interview
-          </h1>
-          <p className="text-base lg:text-lg text-muted-foreground">
-            Select center and user to start the interview
-          </p>
-        </div>
+      {/* Header */}
+      <header className="px-6 py-5">
+        <img src="/assets/brand/logo-white.png" alt="Stance Health" className="h-10 w-auto max-w-[140px]" />
+      </header>
 
+      {/* Content */}
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md space-y-8">
+
+          {/* Title */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-stance-stone/70">
+              Stance Health · Live Interview
+            </p>
+            <h1 className="font-display text-4xl lg:text-5xl font-extrabold text-white tracking-tight">
+              Start your<br />consultation.
+            </h1>
+            <p className="text-stance-stone/70 text-sm">
+              Select your clinic and patient to begin.
+            </p>
+          </div>
+
+          {/* Card */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-5 backdrop-blur-sm">
         <Form {...form}>
-          <form className="space-y-6 animate-slide-in">
+          <form className="space-y-5">
             {/* Center Selection */}
             <FormField
               control={form.control}
               name="centerId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="text-base flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Select Center
+                  <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-stance-stone/70 flex items-center gap-2">
+                    <Building className="h-3.5 w-3.5" />
+                    Clinic / Center
                   </FormLabel>
                   <Popover open={centerOpen} onOpenChange={setCenterOpen}>
                     <PopoverTrigger asChild>
@@ -210,8 +225,8 @@ const Index = () => {
                           aria-expanded={centerOpen}
                           disabled={isLoadingCenters}
                           className={cn(
-                            "w-full justify-between h-12 text-base",
-                            !field.value && "text-muted-foreground"
+                            "w-full justify-between h-12 text-sm bg-white/8 border-white/15 text-white hover:bg-white/12 hover:text-white",
+                            !field.value && "text-white/40"
                           )}
                         >
                           {isLoadingCenters
@@ -228,41 +243,31 @@ const Index = () => {
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search centers..." />
+                    <PopoverContent className="w-full p-0 bg-stance-steel border-white/15" align="start">
+                      <Command className="bg-transparent">
+                        <CommandInput placeholder="Search centers..." className="text-white placeholder:text-white/40 border-white/10" />
                         <CommandList>
                           {isLoadingCenters ? (
-                            <CommandEmpty>Loading centers...</CommandEmpty>
+                            <CommandEmpty className="text-white/50">Loading centers...</CommandEmpty>
                           ) : centerError ? (
-                            <CommandEmpty>
-                              Error loading centers: {centerError}
-                            </CommandEmpty>
+                            <CommandEmpty className="text-red-400">Error loading centers</CommandEmpty>
                           ) : centers.length === 0 ? (
-                            <CommandEmpty>No centers found.</CommandEmpty>
+                            <CommandEmpty className="text-white/50">No centers found.</CommandEmpty>
                           ) : (
                             <>
-                              <CommandEmpty>No center found.</CommandEmpty>
+                              <CommandEmpty className="text-white/50">No center found.</CommandEmpty>
                               <CommandGroup>
                                 {centers.map((center) => (
                                   <CommandItem
                                     key={center._id}
                                     value={center.name}
+                                    className="text-white hover:bg-white/10 aria-selected:bg-white/10"
                                     onSelect={() => {
-                                      form.setValue("centerId", center._id, {
-                                        shouldValidate: true,
-                                      });
+                                      form.setValue("centerId", center._id, { shouldValidate: true });
                                       setCenterOpen(false);
                                     }}
                                   >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        field.value === center._id
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
+                                    <Check className={cn("mr-2 h-4 w-4 text-stance-neon", field.value === center._id ? "opacity-100" : "opacity-0")} />
                                     <span>{center.name}</span>
                                   </CommandItem>
                                 ))}
@@ -274,7 +279,7 @@ const Index = () => {
                     </PopoverContent>
                   </Popover>
                   {centerError && (
-                    <p className="text-sm text-destructive mt-1">{centerError}</p>
+                    <p className="text-xs text-red-400 mt-1">{centerError}</p>
                   )}
                   <FormMessage />
                 </FormItem>
@@ -287,7 +292,9 @@ const Index = () => {
               name="userId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="text-base">Select User</FormLabel>
+                  <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-stance-stone/70">
+                    Patient
+                  </FormLabel>
                   <Popover open={userOpen} onOpenChange={setUserOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -297,8 +304,8 @@ const Index = () => {
                           aria-expanded={userOpen}
                           disabled={!selectedCenterId || isLoadingUsers}
                           className={cn(
-                            "w-full justify-between h-12 text-base",
-                            !field.value && "text-muted-foreground"
+                            "w-full justify-between h-12 text-sm bg-white/8 border-white/15 text-white hover:bg-white/12 hover:text-white",
+                            !field.value && "text-white/40"
                           )}
                         >
                           {!selectedCenterId
@@ -319,52 +326,41 @@ const Index = () => {
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput 
-                          placeholder="Search users..." 
+                    <PopoverContent className="w-full p-0 bg-stance-steel border-white/15" align="start">
+                      <Command className="bg-transparent">
+                        <CommandInput
+                          placeholder="Search patients..."
                           value={userSearch}
                           onValueChange={setUserSearch}
+                          className="text-white placeholder:text-white/40 border-white/10"
                         />
                         <CommandList>
                           {!selectedCenterId ? (
-                            <CommandEmpty>Please select a center first</CommandEmpty>
+                            <CommandEmpty className="text-white/50">Select a center first</CommandEmpty>
                           ) : isLoadingUsers ? (
-                            <CommandEmpty>Loading users...</CommandEmpty>
+                            <CommandEmpty className="text-white/50">Loading...</CommandEmpty>
                           ) : userError ? (
-                            <CommandEmpty>
-                              Error loading users: {userError}
-                            </CommandEmpty>
+                            <CommandEmpty className="text-red-400">Error loading patients</CommandEmpty>
                           ) : users.length === 0 ? (
-                            <CommandEmpty>No users found.</CommandEmpty>
+                            <CommandEmpty className="text-white/50">No patients found.</CommandEmpty>
                           ) : (
                             <>
-                              <CommandEmpty>No user found.</CommandEmpty>
+                              <CommandEmpty className="text-white/50">No patient found.</CommandEmpty>
                               <CommandGroup>
                                 {users.map((user) => (
                                   <CommandItem
                                     key={user.id}
                                     value={`${user.name} ${user.id}`}
+                                    className="text-white hover:bg-white/10 aria-selected:bg-white/10"
                                     onSelect={() => {
-                                      form.setValue("userId", user.id, {
-                                        shouldValidate: true,
-                                      });
+                                      form.setValue("userId", user.id, { shouldValidate: true });
                                       setUserOpen(false);
                                     }}
                                   >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        field.value === user.id
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
+                                    <Check className={cn("mr-2 h-4 w-4 text-stance-neon", field.value === user.id ? "opacity-100" : "opacity-0")} />
                                     <div className="flex flex-col items-start">
                                       <span>{user.name}</span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {user.id}
-                                      </span>
+                                      <span className="text-[10px] text-white/40">{user.id}</span>
                                     </div>
                                   </CommandItem>
                                 ))}
@@ -376,7 +372,7 @@ const Index = () => {
                     </PopoverContent>
                   </Popover>
                   {userError && (
-                    <p className="text-sm text-destructive mt-1">{userError}</p>
+                    <p className="text-xs text-red-400 mt-1">{userError}</p>
                   )}
                   <FormMessage />
                 </FormItem>
@@ -385,11 +381,13 @@ const Index = () => {
 
             <SlideButton
               onSlideComplete={handleLogin}
-              text={isFormValid ? "Slide to Login" : "Select Center and User First"}
+              text={isFormValid ? "Slide to start" : "Select clinic and patient first"}
               disabled={!isFormValid}
             />
           </form>
         </Form>
+          </div>
+        </div>
       </div>
     </div>
   );
