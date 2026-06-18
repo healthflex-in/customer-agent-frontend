@@ -18,22 +18,21 @@
 
 const isDevelopment = import.meta.env.DEV;
 
-// Default URLs based on environment
-const DEFAULT_API_URL = isDevelopment 
-  ? 'http://localhost:8082' 
-  : 'https://customeragent.stance.health';
+// Direct connection to the remote backend
+const REMOTE_BACKEND = 'http://13.204.235.217:8000';
+const REMOTE_WS = 'ws://13.204.235.217:8000';
 
-const DEFAULT_WS_URL = isDevelopment 
-  ? 'ws://localhost:8082' 
-  : 'wss://customeragent.stance.health';
+// Default URLs based on environment
+const DEFAULT_API_URL = REMOTE_BACKEND;
+const DEFAULT_WS_URL = REMOTE_WS;
 
 // Export configuration with environment variable overrides
 export const API_CONFIG = {
   // Base API URL for HTTP requests
-  API_URL: import.meta.env.VITE_API_URL || DEFAULT_API_URL,
-  
+  API_URL: DEFAULT_API_URL,
+
   // WebSocket URL for real-time connections
-  WS_URL: import.meta.env.VITE_WS_URL || DEFAULT_WS_URL,
+  WS_URL: DEFAULT_WS_URL,
 } as const;
 
 // Helper function to build API endpoints

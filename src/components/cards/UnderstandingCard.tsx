@@ -1,4 +1,5 @@
 import { Brain, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type UnderstandingStyle = "glass" | "gradient" | "clean";
 
@@ -40,13 +41,13 @@ const styleTokens: Record<
   },
   clean: {
     container: {
-      background: "hsl(var(--card))",
-      border: "1px solid hsl(var(--border))",
-      boxShadow: "0 2px 18px hsl(var(--primary) / 0.12)",
+      background: "#132644",
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: "0 4px 16px rgba(19,38,68,0.15)",
     },
-    primaryText: "hsl(var(--foreground))",
-    secondaryText: "hsl(var(--muted-foreground))",
-    dotColor: "hsl(var(--primary))",
+    primaryText: "#ffffff",
+    secondaryText: "rgba(255,255,255,0.6)",
+    dotColor: "#DDFE71",
   },
 };
 
@@ -54,12 +55,13 @@ export function UnderstandingCard({
   style = "clean",
   headline = "Understanding your text...",
   caption = "Analyzing context and intent",
-}: UnderstandingCardProps) {
+  className,
+}: UnderstandingCardProps & { className?: string }) {
   const tokens = styleTokens[style];
 
   return (
     <div
-      className="w-full max-w-[340px] rounded-[24px] p-6 relative overflow-hidden"
+      className={cn("w-full max-w-[340px] rounded-[24px] p-6 relative overflow-hidden", className)}
       style={tokens.container}
     >
       {/* Decorative sparkles */}

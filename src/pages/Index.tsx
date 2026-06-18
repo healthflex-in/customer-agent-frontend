@@ -77,35 +77,45 @@ const Index = () => {
     if (typeof window === "undefined") return;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const paramUserId = urlParams.get("userId");
-    const urlFormIdParam = urlParams.get("formId");
-    const urlCenterId = urlParams.get("centerId");
 
     // Backend always uses FRM-01 as the fixed form ID
-    // So we ignore any formId from URL and always use FRM-01
     const FIXED_FORM_ID = "FRM-01";
 
-    // If userId is in URL (with or without formId), skip selection and go directly to interview
-    if (paramUserId) {
-      console.log(`[Index] URL params: userId=${paramUserId}, using fixed formId=${FIXED_FORM_ID}`);
+    // Default IDs for testing and bypass
+    const DEFAULT_CENTER_ID = "67fe35f25e42152fb5185a5e";
+    const DEFAULT_USER_ID = "683d733f28d5260e768ef6a4";
+
+    const paramUserId = urlParams.get("userId");
+    const urlCenterId = urlParams.get("centerId");
+
+    console.log(`[Index] Initializing session: userId=${paramUserId}, centerId=${urlCenterId}, formId=${FIXED_FORM_ID}`);
+
+    if (paramUserId && urlCenterId) {
       setUrlFormId(FIXED_FORM_ID);
       setUrlUserId(paramUserId);
-      // Set form values synchronously
       form.setValue("userId", paramUserId, { shouldValidate: true });
-      if (urlCenterId) {
-        form.setValue("centerId", urlCenterId, { shouldValidate: true });
-      }
-      
-      // If both userId and formId are in URL, go directly to interview
-      // If only userId, still go to interview (backend will use FRM-01)
-      if (urlFormIdParam || paramUserId) {
-        setShowConversation(true);
-      }
+      form.setValue("centerId", urlCenterId, { shouldValidate: true });
+      setShowConversation(true);
+    } else if (!paramUserId && !urlCenterId) {
+      // Auto-login with defaults if none provided
+      console.log(`[Index] No IDs in URL, using defaults: userId=${DEFAULT_USER_ID}, centerId=${DEFAULT_CENTER_ID}`);
+      setUrlFormId(FIXED_FORM_ID);
+      setUrlUserId(DEFAULT_USER_ID);
+      form.setValue("userId", DEFAULT_USER_ID, { shouldValidate: true });
+      form.setValue("centerId", DEFAULT_CENTER_ID, { shouldValidate: true });
+      setShowConversation(true);
     }
   }, [form]);
 
   // Fetch centers on mount
   useEffect(() => {
+    // Skip fetching centers if we are in auto-bypass mode
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.get("userId") && !urlParams.get("centerId")) {
+      console.log("[Index] Skipping center fetch due to auto-bypass");
+      return;
+    }
+
     const loadCenters = async () => {
       try {
         setIsLoadingCenters(true);

@@ -44,111 +44,50 @@ export default function SegmentedProgress({
     return "pending" as const;
   });
 
-  // Use the 1-indexed step position (matches FormProgressCard's "1/6" display).
-  const positionCount = Math.min(total, Math.max(1, currentStep));
   const labelToShow = activeLabel || steps[activeIdx] || "";
+
+  // Only completed sections count toward progress — active section is "in progress"
+  // so the number stays consistent with the bar (only solid segments look "done").
+  const completedSteps = states.filter(s => s === "complete").length;
+  const displayProgress = Math.round((completedSteps / total) * 100);
 
   return (
     <div className={cn("w-full", className)}>
       {/* Caption row */}
-      <div className="flex items-end justify-between gap-4 mb-2">
-        <div className="flex items-baseline gap-3 min-w-0">
-          <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground font-medium">
-            Interview
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-stance-stone font-bold mb-0.5 opacity-80">
+            Current Phase
           </span>
-          <span className="text-[15px] md:text-[16px] font-medium text-foreground truncate">
+          <h2 className="font-display text-xl md:text-2xl text-white tracking-tight">
             {labelToShow}
-          </span>
+          </h2>
         </div>
-        <div className="flex items-baseline gap-2 whitespace-nowrap">
-          <span className="text-[16px] md:text-[18px] font-semibold text-foreground leading-none">
-            {Math.round(overallProgress)}
-            <span className="text-muted-foreground text-[13px] font-normal">%</span>
+
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-stance-stone font-bold mb-0.5 opacity-70">
+            Progress
           </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-medium ml-1">
-            {positionCount}/{total} sections
+          <span className="font-display text-lg md:text-xl text-stance-neon">
+            {completedSteps > 0 ? `${displayProgress}%` : `${completedSteps + 1} / ${total}`}
           </span>
         </div>
       </div>
 
-      {/* Segmented track */}
-      <div
-        className={cn(
-          "relative h-3 rounded-full p-[2px]",
-          "bg-muted border border-border/60"
-        )}
-        role="progressbar"
-        aria-valuenow={Math.round(overallProgress)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Interview progress: ${labelToShow}`}
-      >
-        <div
-          className="grid h-full w-full gap-[2px]"
-          style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
-        >
-          {states.map((s, i) => (
-            <Segment
-              key={i}
-              state={s}
-              isFirst={i === 0}
-              isLast={i === total - 1}
-              label={steps[i]}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Segment({
-  state,
-  isFirst,
-  isLast,
-  label,
-}: {
-  state: "complete" | "active" | "pending";
-  isFirst: boolean;
-  isLast: boolean;
-  label: string;
-}) {
-  return (
-    <div
-      title={label}
-      className={cn(
-        "relative h-full overflow-hidden transition-colors duration-500",
-        isFirst && "rounded-l-full",
-        isLast && "rounded-r-full",
-        state === "complete" &&
-          "bg-accent shadow-[0_0_8px_-2px_hsl(var(--accent)/0.6)]",
-        state === "active" && "bg-accent/30",
-        state === "pending" && "bg-muted-foreground/10"
-      )}
-    >
-      {state === "active" && (
-        <>
-          <span
-            aria-hidden="true"
+      <div className="relative h-2 w-full bg-white/10 rounded-full overflow-hidden flex gap-0.5 p-px items-center">
+        {states.map((state, i) => (
+          <div
+            key={i}
             className={cn(
-              "absolute inset-y-0 left-0 w-[55%] bg-accent",
-              isFirst && "rounded-l-full"
+              "h-full rounded-full transition-all duration-700 ease-out flex-1",
+              state === "complete" && "bg-stance-neon",
+              state === "active" && "bg-white/30 animate-pulse",
+              state === "pending" && "bg-white/10"
             )}
-            style={{
-              boxShadow: "0 0 10px -2px hsl(var(--accent) / 0.7)",
-            }}
           />
-          <span
-            aria-hidden="true"
-            className="absolute inset-0 animate-pulse"
-            style={{
-              background:
-                "linear-gradient(90deg, transparent 0%, hsl(var(--accent) / 0.35) 60%, transparent 100%)",
-              mixBlendMode: "multiply",
-            }}
-          />
-        </>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
+

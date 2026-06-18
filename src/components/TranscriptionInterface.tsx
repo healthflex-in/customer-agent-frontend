@@ -1025,7 +1025,7 @@ export default function TranscriptionInterface({
                           style="clean"
                           headline="Processing response..."
                           caption="Our engine is mapping your physical indicators."
-                          className="bg-stance-steel/5 border-none shadow-none"
+                          className="bg-stance-steel text-white border-none shadow-md"
                         />
                       </div>
                     )}
