@@ -175,35 +175,31 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stance-steel flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-stance-steel flex items-center justify-center relative overflow-hidden px-4 py-12">
       {/* Background glow accents */}
-      <div className="absolute -top-32 -left-32 w-96 h-96 bg-stance-neon/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 -right-32 w-80 h-80 bg-stance-stone/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-stance-neon/8 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-stance-stone/8 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Header */}
-      <header className="px-6 py-5">
-        <img src="/assets/brand/logo-white.png" alt="Stance Health" className="h-10 w-auto max-w-[140px]" />
-      </header>
+      {/* Centered content */}
+      <div className="w-full max-w-sm space-y-8 relative z-10">
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-md space-y-8">
+        {/* Logo — centered above heading */}
+        <div className="flex justify-center">
+          <img src="/assets/brand/logo-white.png" alt="Stance Health" className="h-12 w-auto max-w-[180px]" />
+        </div>
 
-          {/* Title */}
-          <div className="space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-stance-stone/70">
-              Stance Health · Live Interview
-            </p>
-            <h1 className="font-display text-4xl lg:text-5xl font-extrabold text-white tracking-tight">
-              Start your<br />consultation.
-            </h1>
-            <p className="text-stance-stone/70 text-sm">
-              Select your clinic and patient to begin.
-            </p>
-          </div>
+        {/* Title */}
+        <div className="space-y-2 text-center">
+          <h1 className="font-display text-3xl lg:text-4xl font-extrabold text-white tracking-tight">
+            Start your consultation.
+          </h1>
+          <p className="text-stance-stone/60 text-sm">
+            Select your clinic and patient to begin.
+          </p>
+        </div>
 
-          {/* Card */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-5 backdrop-blur-sm">
+        {/* Card */}
+        <div className="bg-white/6 border border-white/12 rounded-3xl p-6 space-y-5 backdrop-blur-sm shadow-2xl">
         <Form {...form}>
           <form className="space-y-5">
             {/* Center Selection */}
@@ -386,7 +382,6 @@ const Index = () => {
             />
           </form>
         </Form>
-          </div>
         </div>
       </div>
     </div>
