@@ -1,41 +1,33 @@
 /**
  * API Configuration
  *
- * Priority order for URLs:
- *   1. VITE_API_URL / VITE_WS_URL environment variables (set in Vercel dashboard)
- *   2. Auto-detect from current page protocol:
- *        https → https:// + wss://
- *        http  → http://  + ws://
- *
- * Set these in Vercel → Project Settings → Environment Variables:
- *   VITE_API_URL = https://api.customerai.stance.health
- *   VITE_WS_URL  = wss://api.customerai.stance.health
+ * Development:  calls go directly to http://13.204.235.217:8000
+ * Production:   calls go to the same origin (e.g. https://customerai.stance.health)
+ *               and Vercel rewrites them to the backend via vercel.json proxy rules.
+ *               This avoids all mixed-content browser blocks.
  */
 
-const RAW_BACKEND = 'http://13.204.235.217:8000';
+const isDev = import.meta.env.DEV;
+const DEV_BACKEND = 'http://13.204.235.217:8000';
 
-// If an explicit env var is set, use it. Otherwise derive https/wss automatically
-// based on the page protocol so mixed-content errors never happen in production.
-function resolveApiUrl(): string {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL as string;
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    // Replace http:// with https:// for same backend (requires SSL on server)
-    return RAW_BACKEND.replace('http://', 'https://');
-  }
-  return RAW_BACKEND;
-}
+// In production, use empty string so URLs are relative to the page origin.
+// Vercel's rewrite rules (vercel.json) forward them to the real backend.
+const API_BASE = isDev ? DEV_BACKEND : '';
 
-function resolveWsUrl(): string {
-  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL as string;
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return RAW_BACKEND.replace('http://', 'wss://');
+// WebSocket must be an absolute URL with the right protocol.
+// In production, derive it from the page origin (https → wss, http → ws).
+function resolveWsBase(): string {
+  if (isDev) return 'ws://13.204.235.217:8000';
+  if (typeof window !== 'undefined') {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${proto}://${window.location.host}`;
   }
-  return RAW_BACKEND.replace('http://', 'ws://');
+  return 'ws://localhost:8080';
 }
 
 export const API_CONFIG = {
-  API_URL: resolveApiUrl(),
-  WS_URL: resolveWsUrl(),
+  API_URL: API_BASE,
+  WS_URL: resolveWsBase(),
 };
 
 export const getApiUrl = (path: string): string => {

@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/graphql",       "destination": "http://13.204.235.217:8000/graphql" },
+    { "source": "/health",        "destination": "http://13.204.235.217:8000/health" },
+    { "source": "/api/:path*",    "destination": "http://13.204.235.217:8000/api/:path*" },
+    { "source": "/ws/:path*",     "destination": "http://13.204.235.217:8000/ws/:path*" }
+  ]
+}
