@@ -1,27 +1,20 @@
 import { cn } from "@/lib/utils";
 
+interface StepStatus {
+  name?: string;
+  section?: string;
+  isComplete?: boolean;
+}
+
 interface SegmentedProgressProps {
-  /** Ordered section labels. One segment per step. */
   steps: string[];
-  /** 1-based index of the active step. */
   currentStep: number;
-  /** Per-step completion state (parallel to `steps`). Falls back to currentStep. */
-  stepStatus?: Array<{ name?: string; section?: string; isComplete?: boolean }>;
-  /** Overall % (0-100). Shown to the right. */
+  stepStatus?: StepStatus[];
   overallProgress: number;
-  /** Currently displayed section label (overrides step name if provided). */
   activeLabel?: string;
   className?: string;
 }
 
-/**
- * Segmented Progress
- *
- * One segment per interview section. Completed segments are filled with the
- * primary color; the active segment uses a softer fill with a pulsing leading
- * edge; pending segments sit dim against the track. Hairline gaps between
- * segments preserve a "track" feel.
- */
 export default function SegmentedProgress({
   steps,
   currentStep,
@@ -33,21 +26,33 @@ export default function SegmentedProgress({
   const total = steps.length;
   const activeIdx = Math.max(0, Math.min(total - 1, currentStep - 1));
 
-  const states = steps.map((_, i) => {
-    const explicit = stepStatus?.[i]?.isComplete;
+  // Build a name→isComplete map from stepStatus so we match by name,
+  // not by array index (backend may reorder completed sections first).
+  const completionByName: Record<string, boolean> = {};
+  if (stepStatus) {
+    for (const s of stepStatus) {
+      const key = (s.name || s.section || "").toLowerCase();
+      if (key && typeof s.isComplete === "boolean") {
+        completionByName[key] = s.isComplete;
+      }
+    }
+  }
+
+  const states = steps.map((step, i) => {
+    const key = step.toLowerCase();
+    const explicit = completionByName[key];
+
     if (typeof explicit === "boolean") {
       if (explicit) return "complete" as const;
       return i === activeIdx ? ("active" as const) : ("pending" as const);
     }
+    // Fallback: position-based
     if (i < activeIdx) return "complete" as const;
     if (i === activeIdx) return "active" as const;
     return "pending" as const;
   });
 
   const labelToShow = activeLabel || steps[activeIdx] || "";
-
-  // Only completed sections count toward progress — active section is "in progress"
-  // so the number stays consistent with the bar (only solid segments look "done").
   const completedSteps = states.filter(s => s === "complete").length;
   const displayProgress = Math.round((completedSteps / total) * 100);
 
@@ -74,20 +79,25 @@ export default function SegmentedProgress({
         </div>
       </div>
 
-      <div className="relative h-2 w-full bg-white/10 rounded-full overflow-hidden flex gap-0.5 p-px items-center">
+      {/* Track */}
+      <div className="relative h-2 w-full flex gap-0.5">
         {states.map((state, i) => (
           <div
             key={i}
             className={cn(
-              "h-full rounded-full transition-all duration-700 ease-out flex-1",
+              "h-full rounded-full transition-all duration-700 ease-out flex-1 relative overflow-hidden",
               state === "complete" && "bg-stance-neon",
-              state === "active" && "bg-white/30 animate-pulse",
+              state === "active" && "bg-stance-neon/40",
               state === "pending" && "bg-white/10"
             )}
-          />
+          >
+            {/* Pulsing leading-edge glow on active segment only */}
+            {state === "active" && (
+              <span className="absolute inset-0 rounded-full bg-stance-neon/60 animate-pulse" />
+            )}
+          </div>
         ))}
       </div>
     </div>
   );
 }
-
