@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -48,9 +49,12 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 const Index = () => {
-  const [showConversation, setShowConversation] = useState(false);
-  const [urlFormId, setUrlFormId] = useState<string | null>(null);
-  const [urlUserId, setUrlUserId] = useState<string | null>(null);
+  const { userId: pathUserId, formId: pathFormId } = useParams<{ userId?: string; formId?: string }>();
+  const navigate = useNavigate();
+
+  const [showConversation, setShowConversation] = useState(!!pathUserId);
+  const [urlFormId, setUrlFormId] = useState<string | null>(pathFormId || null);
+  const [urlUserId, setUrlUserId] = useState<string | null>(pathUserId || null);
   const [userOpen, setUserOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [centerOpen, setCenterOpen] = useState(false);
@@ -72,9 +76,12 @@ const Index = () => {
   const selectedCenterId = form.watch("centerId");
   const selectedUserId = form.watch("userId");
 
-  // Read userId and centerId from URL query parameters on mount (deep-link support)
+  // Read from URL path params (/{userId}/{formId}) or fallback to query params on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // Path params already handled by useParams above — skip if present
+    if (pathUserId) return;
 
     const urlParams = new URLSearchParams(window.location.search);
     const FIXED_FORM_ID = "FRM-01";
@@ -88,7 +95,7 @@ const Index = () => {
       form.setValue("centerId", urlCenterId, { shouldValidate: true });
       setShowConversation(true);
     }
-  }, [form]);
+  }, [form, pathUserId]);
 
   // Fetch centers on mount
   useEffect(() => {
@@ -154,8 +161,11 @@ const Index = () => {
 
   const handleLogin = () => {
     if (isFormValid) {
-      // Go straight into the interview. The interview component will either
-      // resume the existing form for this user (if any) or start a new one.
+      const FIXED_FORM_ID = "FRM-01";
+      // Update URL to /{userId}/{formId} for deep-linking and refresh persistence
+      navigate(`/${selectedUserId}/${FIXED_FORM_ID}`, { replace: true });
+      setUrlUserId(selectedUserId);
+      setUrlFormId(FIXED_FORM_ID);
       setShowConversation(true);
     }
   };

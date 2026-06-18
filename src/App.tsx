@@ -18,6 +18,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          {/* Clean URL: /{userId}/{formId} — deep-linkable interview sessions */}
+          <Route path="/:userId/:formId" element={<Index />} />
           <Route
             path="/:formKey/:patientId/:appointmentId"
             element={<FormPage />}
