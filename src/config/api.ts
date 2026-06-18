@@ -1,51 +1,49 @@
 /**
  * API Configuration
- * 
- * This file centralizes all API and WebSocket URLs.
- * It uses environment variables from Vite (VITE_*) with fallbacks.
- * 
- * For development: Uses localhost:8000
- * For production: Uses customeragent.stance.health
- * 
- * To override these values:
- * 1. Create .env.development for local development
- * 2. Create .env.production for production builds
- * 
- * Example .env.production:
- * VITE_API_URL=https://customeragent.stance.health
- * VITE_WS_URL=wss://customeragent.stance.health
+ *
+ * Priority order for URLs:
+ *   1. VITE_API_URL / VITE_WS_URL environment variables (set in Vercel dashboard)
+ *   2. Auto-detect from current page protocol:
+ *        https → https:// + wss://
+ *        http  → http://  + ws://
+ *
+ * Set these in Vercel → Project Settings → Environment Variables:
+ *   VITE_API_URL = https://api.customerai.stance.health
+ *   VITE_WS_URL  = wss://api.customerai.stance.health
  */
 
-const isDevelopment = import.meta.env.DEV;
+const RAW_BACKEND = 'http://13.204.235.217:8000';
 
-// Direct connection to the remote backend
-const REMOTE_BACKEND = 'http://13.204.235.217:8000';
-const REMOTE_WS = 'ws://13.204.235.217:8000';
+// If an explicit env var is set, use it. Otherwise derive https/wss automatically
+// based on the page protocol so mixed-content errors never happen in production.
+function resolveApiUrl(): string {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL as string;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    // Replace http:// with https:// for same backend (requires SSL on server)
+    return RAW_BACKEND.replace('http://', 'https://');
+  }
+  return RAW_BACKEND;
+}
 
-// Default URLs based on environment
-const DEFAULT_API_URL = REMOTE_BACKEND;
-const DEFAULT_WS_URL = REMOTE_WS;
+function resolveWsUrl(): string {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL as string;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return RAW_BACKEND.replace('http://', 'wss://');
+  }
+  return RAW_BACKEND.replace('http://', 'ws://');
+}
 
-// Export configuration with environment variable overrides
 export const API_CONFIG = {
-  // Base API URL for HTTP requests
-  API_URL: DEFAULT_API_URL,
+  API_URL: resolveApiUrl(),
+  WS_URL: resolveWsUrl(),
+};
 
-  // WebSocket URL for real-time connections
-  WS_URL: DEFAULT_WS_URL,
-} as const;
-
-// Helper function to build API endpoints
 export const getApiUrl = (path: string): string => {
-  const url = API_CONFIG.API_URL;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${url}${normalizedPath}`;
+  return `${API_CONFIG.API_URL}${normalizedPath}`;
 };
 
-// Helper function to build WebSocket URLs
 export const getWsUrl = (path: string = '/ws'): string => {
-  const url = API_CONFIG.WS_URL;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${url}${normalizedPath}`;
+  return `${API_CONFIG.WS_URL}${normalizedPath}`;
 };
-
