@@ -521,10 +521,10 @@ export default function TranscriptionInterface({
     }
   }, [isConnected, userId, initialFormId, sendStartInterview]);
 
-  // Auto-scroll messages
+  // Auto-scroll — also when listening/understanding state changes so the card is visible
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isListening, isUnderstanding]);
 
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
