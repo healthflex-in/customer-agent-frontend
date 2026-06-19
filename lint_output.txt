@@ -1,0 +1,85 @@
+
+> vite_react_shadcn_ts@0.0.0 lint
+> eslint .
+
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/SlideButton.tsx
+  88:6  warning  React Hook useEffect has missing dependencies: 'handleMouseMove' and 'handleMouseUp'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/TranscriptionInterface.tsx
+   68:59  error    Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  104:67  error    Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  139:35  error    Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  350:66  error    Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  610:21  error    Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  674:6   warning  React Hook useCallback has an unnecessary dependency: 'dispatchPendingTranscription'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  842:35  error    Unnecessary escape character: \*                                                                                                        no-useless-escape
+  845:52  error    Unnecessary escape character: \*                                                                                                        no-useless-escape
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/badge.tsx
+  29:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/button.tsx
+  47:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/command.tsx
+  24:11  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/form.tsx
+  129:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/navigation-menu.tsx
+  111:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/sidebar.tsx
+  636:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/sonner.tsx
+  27:19  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/textarea.tsx
+  5:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+/Users/chris/Healthflex/customer-agent-fe/src/components/ui/toggle.tsx
+  37:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/chris/Healthflex/customer-agent-fe/src/hooks/useVoiceRecorder.ts
+   17:33  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   38:25  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   39:25  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   40:25  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   41:25  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   45:68  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   46:55  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   75:46  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   75:83  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+   83:40  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  109:39  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  131:67  error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  186:11  error  'isActive' is never reassigned. Use 'const' instead  prefer-const
+
+/Users/chris/Healthflex/customer-agent-fe/src/hooks/useWebSocket.ts
+  25:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  42:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  43:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/chris/Healthflex/customer-agent-fe/src/pages/Index.tsx
+  148:78  error    Unexpected any. Specify a different type                                                                 @typescript-eslint/no-explicit-any
+  164:6   warning  React Hook useEffect has a missing dependency: 'form'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/chris/Healthflex/customer-agent-fe/src/utils/graphql-client.ts
+   47:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   49:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   76:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   89:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  153:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  234:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/chris/Healthflex/customer-agent-fe/tailwind.config.ts
+  113:13  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+✖ 45 problems (35 errors, 10 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

@@ -21,8 +21,14 @@ interface ChatHistoryMessage {
   timestamp: string;
 }
 
+interface ThoughtStage {
+  stage: string;
+  detail: string;
+  status: "done" | "active" | "pending";
+}
+
 interface WebSocketMessage {
-  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history";
+  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history" | "thought_update";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
@@ -36,6 +42,7 @@ interface WebSocketMessage {
   is_last?: boolean;
   timestamp?: number;
   messages?: ChatHistoryMessage[]; // for chat_history type
+  thoughts?: ThoughtStage[]; // for thought_update type
 }
 
 interface UseWebSocketOptions {
@@ -50,6 +57,7 @@ interface UseWebSocketOptions {
   onFormLoaded?: (formData: Record<string, any>, interviewState?: InterviewState) => void;
   onAttachmentRequest?: (messageText?: string) => void;
   onChatHistory?: (messages: ChatHistoryMessage[]) => void;
+  onThoughtUpdate?: (thoughts: ThoughtStage[]) => void;
 }
 
 export default function useWebSocket({
@@ -64,6 +72,7 @@ export default function useWebSocket({
   onFormLoaded,
   onAttachmentRequest,
   onChatHistory,
+  onThoughtUpdate,
 }: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -188,6 +197,10 @@ export default function useWebSocket({
                 audioBuffersRef.current.delete(data.message_id);
               }
             }
+          } else if (data.type === "thought_update") {
+            if (data.thoughts && onThoughtUpdate) {
+              onThoughtUpdate(data.thoughts);
+            }
           } else if (data.type === "chat_history") {
             if (data.messages && onChatHistory) {
               onChatHistory(data.messages);
@@ -228,7 +241,7 @@ export default function useWebSocket({
       onStatusChange?.("disconnected");
       onError?.(error as Error);
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory, onThoughtUpdate]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect

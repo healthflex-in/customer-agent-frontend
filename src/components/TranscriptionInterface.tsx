@@ -11,6 +11,8 @@ import useWebSocket from "@/hooks/useWebSocket";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { UnderstandingCard } from "@/components/cards/UnderstandingCard";
+import { AgentThoughtStream } from "@/components/cards/AgentThoughtStream";
+import type { ThoughtStage } from "@/components/cards/AgentThoughtStream";
 import { getApiUrl, getWsUrl } from "@/config/api";
 import SegmentedProgress from "@/components/voice/SegmentedProgress";
 
@@ -66,6 +68,7 @@ export default function TranscriptionInterface({
   const [interviewState, setInterviewState] = useState<InterviewState | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isUnderstanding, setIsUnderstanding] = useState(false);
+  const [agentThoughts, setAgentThoughts] = useState<ThoughtStage[] | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
@@ -158,6 +161,7 @@ export default function TranscriptionInterface({
       };
       setMessages((prev) => [...prev, aiMessage]);
       setIsUnderstanding(false);
+      setAgentThoughts(null);
     }
 
     // Handle attachment request - show/hide upload UI based on server signal
@@ -321,6 +325,10 @@ export default function TranscriptionInterface({
     setMessages(restored);
   }, []);
 
+  const handleThoughtUpdate = useCallback((thoughts: ThoughtStage[]) => {
+    setAgentThoughts(thoughts);
+  }, []);
+
   const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendStartNewForm, sendLoadForm, isConnected } = useWebSocket({
     serverUrl: userId ? getWsUrl(`/ws/${userId}`) : undefined,
     onMessage: handleWebSocketMessage,
@@ -332,6 +340,7 @@ export default function TranscriptionInterface({
     onFormLoaded: handleFormLoaded,
     onAttachmentRequest: handleAttachmentRequest,
     onChatHistory: handleChatHistory,
+    onThoughtUpdate: handleThoughtUpdate,
   });
 
   const sendTranscript = useCallback((textToSend: string) => {
@@ -373,6 +382,7 @@ export default function TranscriptionInterface({
 
     sendTextInput(trimmed);
     setIsUnderstanding(true);
+    setAgentThoughts(null);
 
     setCurrentTranscript("");
     setEditedTranscript("");
@@ -724,6 +734,7 @@ export default function TranscriptionInterface({
     disconnect();
     setIsListening(false);
     setIsUnderstanding(false);
+    setAgentThoughts(null);
     pendingTranscriptionRef.current = null;
 
     toast({
@@ -1023,12 +1034,16 @@ export default function TranscriptionInterface({
 
                     {isLastUserMessage && isUnderstanding && (
                       <div className="w-full mt-4 flex justify-start">
-                        <UnderstandingCard
-                          style="clean"
-                          headline="Processing response..."
-                          caption="Our engine is mapping your physical indicators."
-                          className="bg-stance-steel text-white border-none shadow-md"
-                        />
+                        {agentThoughts && agentThoughts.length > 0 ? (
+                          <AgentThoughtStream thoughts={agentThoughts} />
+                        ) : (
+                          <UnderstandingCard
+                            style="clean"
+                            headline="Processing response..."
+                            caption="Our engine is mapping your physical indicators."
+                            className="bg-stance-steel text-white border-none shadow-md"
+                          />
+                        )}
                       </div>
                     )}
                   </div>
