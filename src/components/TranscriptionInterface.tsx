@@ -912,8 +912,10 @@ export default function TranscriptionInterface({
               currentStep={derivedCurrentStep}
               stepStatus={interviewState.sectionProgress?.steps}
               overallProgress={
-                interviewState.sectionProgress?.progress ??
-                interviewState.progress
+                Math.max(
+                  interviewState.progress,
+                  interviewState.sectionProgress?.progress ?? 0
+                )
               }
               activeLabel={interviewState.section}
             />
