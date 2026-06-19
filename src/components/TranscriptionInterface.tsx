@@ -1056,7 +1056,7 @@ export default function TranscriptionInterface({
             )}
 
             {isListening && (
-              <div className="flex justify-start">
+              <div className="flex justify-end">
                 <UnderstandingCard
                   style="clean"
                   headline="Listening..."
@@ -1067,7 +1067,7 @@ export default function TranscriptionInterface({
             )}
 
             {isProcessingVoice && !isListening && (
-              <div className="flex justify-start">
+              <div className="flex justify-end">
                 <UnderstandingCard
                   style="clean"
                   headline="Processing your voice..."
