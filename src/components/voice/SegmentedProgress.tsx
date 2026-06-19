@@ -38,21 +38,17 @@ export default function SegmentedProgress({
     }
   }
 
-  const states = steps.map((step, i) => {
-    const key = step.toLowerCase();
-    const explicit = completionByName[key];
+  // Count how many sections are complete (from any source).
+  // Then render that many consecutive green segments from the left,
+  // followed by one glowing active segment, followed by pending.
+  // This guarantees a continuous green run regardless of which specific
+  // sections are complete out-of-order.
+  const completedCount = Object.values(completionByName).filter(Boolean).length
+    || Math.max(0, activeIdx); // fallback: sections before active are complete
 
-    // Enforce sequential progress: a segment after the active index can never
-    // appear green — it would create a non-contiguous / "random" green segment.
-    if (i > activeIdx) return "pending" as const;
-
-    if (typeof explicit === "boolean") {
-      if (explicit) return "complete" as const;
-      return i === activeIdx ? ("active" as const) : ("pending" as const);
-    }
-    // Fallback: position-based
-    if (i < activeIdx) return "complete" as const;
-    if (i === activeIdx) return "active" as const;
+  const states = steps.map((_step, i) => {
+    if (i < completedCount) return "complete" as const;
+    if (i === completedCount) return "active" as const;
     return "pending" as const;
   });
 
