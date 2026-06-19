@@ -70,6 +70,7 @@ export default function TranscriptionInterface({
   const [isUnderstanding, setIsUnderstanding] = useState(false);
   const [agentThoughts, setAgentThoughts] = useState<ThoughtStage[] | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
@@ -112,8 +113,9 @@ export default function TranscriptionInterface({
 
   // Handle real-time transcription from server
   const handleTranscription = useCallback((transcription: string) => {
-    // Always hide listening card when transcription arrives
+    // Hide both listening and processing-voice cards when transcription arrives
     setIsListening(false);
+    setIsProcessingVoice(false);
     if (transcription && transcription.trim()) {
       const trimmedTranscription = transcription.trim();
       pendingTranscriptionRef.current = trimmedTranscription;
@@ -526,7 +528,7 @@ export default function TranscriptionInterface({
   // Auto-scroll — also when listening/understanding state changes so the card is visible
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isListening, isUnderstanding]);
+  }, [messages, isListening, isProcessingVoice, isUnderstanding]);
 
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
@@ -619,13 +621,13 @@ export default function TranscriptionInterface({
     // Send audio_end message
     sendAudioEnd(duration);
 
-    // Keep listening card visible until server transcription arrives
-    // The transcription will auto-send after 2 seconds via handleTranscription
-    setIsListening(true);
-    // Set a timeout to hide the listening card if transcription doesn't arrive within 5 seconds
+    // Switch from listening → processing voice while Whisper transcribes
+    setIsListening(false);
+    setIsProcessingVoice(true);
+    // Safety timeout: hide if transcription doesn't arrive within 8 seconds
     setTimeout(() => {
-      setIsListening(false);
-    }, 5000);
+      setIsProcessingVoice(false);
+    }, 8000);
 
     // Reset chunk tracking
     lastChunkTimeRef.current = 0;
@@ -1060,6 +1062,17 @@ export default function TranscriptionInterface({
                   headline="Listening..."
                   caption="Speak clearly. We're capturing every detail."
                   className="bg-stance-neon/5 border-stance-neon/20 text-stance-grey"
+                />
+              </div>
+            )}
+
+            {isProcessingVoice && !isListening && (
+              <div className="flex justify-start">
+                <UnderstandingCard
+                  style="clean"
+                  headline="Processing your voice..."
+                  caption="Converting speech to text, just a moment."
+                  className="bg-stance-steel/80 border-white/10"
                 />
               </div>
             )}
