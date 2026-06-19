@@ -59,29 +59,8 @@ export default function SegmentedProgress({
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Caption row */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex flex-col">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-stance-stone font-bold mb-0.5 opacity-80">
-            Current Phase
-          </span>
-          <h2 className="font-display text-xl md:text-2xl text-white tracking-tight">
-            {labelToShow}
-          </h2>
-        </div>
-
-        <div className="flex flex-col items-end">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-stance-stone font-bold mb-0.5 opacity-70">
-            Progress
-          </span>
-          <span className="font-display text-lg md:text-xl text-stance-neon">
-            {completedSteps > 0 ? `${displayProgress}%` : `${completedSteps + 1} / ${total}`}
-          </span>
-        </div>
-      </div>
-
-      {/* Track */}
-      <div className="relative h-2 w-full flex gap-0.5">
+      {/* Compact bar only — phase label and % are shown in the main header */}
+      <div className="relative h-1.5 w-full flex gap-0.5">
         {states.map((state, i) => (
           <div
             key={i}

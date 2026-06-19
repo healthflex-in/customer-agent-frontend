@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KeyboardEvent } from "react";
+import WelcomeOverlay from "@/components/WelcomeOverlay";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +56,26 @@ interface TranscriptionInterfaceProps {
   initialFormId?: string | null; // null = new form, string = existing form ID
 }
 
+// Rotating processing labels shown while Whisper transcribes (Claude-style)
+const _VOICE_HINTS = ["Understanding...", "Listening...", "Transcribing...", "Mulling...", "Triaging...", "Processing..."];
+function _VoiceProcessingCard() {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % _VOICE_HINTS.length), 1800);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="max-w-[260px] rounded-[18px] bg-[#132644] border border-white/8 px-5 py-4 flex flex-col gap-2 shadow-sm">
+      <span className="text-[13px] font-semibold text-white/90 transition-all duration-500">{_VOICE_HINTS[idx]}</span>
+      <div className="flex gap-1.5">
+        {[0,1,2].map(i => (
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-neon/60 animate-pulse" style={{ animationDelay: `${i*200}ms` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TranscriptionInterface({ 
   userId = "", 
   userName = "",
@@ -75,6 +96,7 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
+  const [showWelcome, setShowWelcome] = useState(true); // show overlay until user acknowledges
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const handleStartRecordingRef = useRef<(() => Promise<void>) | null>(null);
@@ -587,6 +609,8 @@ export default function TranscriptionInterface({
       isRecordingRef.current = true;
       await startRecording();
       setIsListening(true);
+      // Scroll to bottom so user sees the listening card
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (error: any) {
       isRecordingRef.current = false;
       audioStartSentRef.current = false;
@@ -906,38 +930,66 @@ export default function TranscriptionInterface({
 
   return (
     <div className="h-screen bg-stance-steel flex flex-col overflow-hidden text-white">
-      {/* Premium Header */}
+
+      {/* ── Welcome overlay — shown once before interview starts ── */}
+      {showWelcome && (
+        <WelcomeOverlay
+          formName="Welcome to Stance"
+          formDetails="Please answer a few quick questions to help us understand your current condition and concerns."
+          onProceed={() => setShowWelcome(false)}
+        />
+      )}
+
+      {/* ── Header ── */}
       <header className="bg-stance-steel/80 backdrop-blur-md z-10">
-        <div className="max-w-5xl mx-auto px-6 py-5 flex flex-col gap-6">
+        <div className="max-w-5xl mx-auto px-5 py-3 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <img
                 src="/assets/brand/logo-white.png"
                 alt="Stance Health"
-                className="h-12 w-auto max-w-[160px]"
+                className="h-7 w-auto max-w-[120px]"
               />
-              <div className="h-4 w-px bg-white/20 hidden sm:block" />
-              <Badge
-                variant="outline"
-                className="rounded-sm border-0 text-stance-steel bg-stance-neon font-display text-[9px] uppercase tracking-widest px-3 py-1 font-bold"
-              >
-                Live Interview
-              </Badge>
+              {interviewState?.section && (
+                <>
+                  <div className="h-3.5 w-px bg-white/20" />
+                  <span className="text-[11px] font-medium text-white/50 tracking-wide">
+                    {interviewState.section}
+                  </span>
+                </>
+              )}
             </div>
 
-            {status !== "connected" && (
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "h-2 w-2 rounded-full",
-                  status === "connecting" ? "bg-yellow-400 animate-pulse" : "bg-red-500"
-                )} />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-stance-stone">
-                  {status === "connecting" ? "Connecting..." : "Offline"}
+            <div className="flex items-center gap-3">
+              {/* Progress number — compact */}
+              {interviewState && (
+                <span className="text-[11px] font-bold text-stance-neon tabular-nums">
+                  {Math.round(Math.max(interviewState.progress, interviewState.sectionProgress?.progress ?? 0))}%
                 </span>
-              </div>
-            )}
+              )}
+
+              <Badge
+                variant="outline"
+                className="rounded-sm border-0 text-stance-steel bg-stance-neon font-display text-[8px] uppercase tracking-widest px-2 py-0.5 font-bold"
+              >
+                Live
+              </Badge>
+
+              {status !== "connected" && (
+                <div className="flex items-center gap-1.5">
+                  <div className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    status === "connecting" ? "bg-yellow-400 animate-pulse" : "bg-red-500"
+                  )} />
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">
+                    {status === "connecting" ? "Connecting" : "Offline"}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Progress bar — compact */}
           {interviewState && (
             <SegmentedProgress
               steps={interviewSteps}
@@ -998,7 +1050,7 @@ export default function TranscriptionInterface({
                         : <p className="text-sm leading-relaxed">{message.content}</p>}
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-stance-grey/40 px-1">
-                      {isAssistant ? "Stance Assistant" : "You"} • {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {isAssistant ? "Sage" : "You"} • {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
 
                     {/* Inline upload prompt under the triggering assistant message */}
@@ -1095,12 +1147,7 @@ export default function TranscriptionInterface({
 
             {isProcessingVoice && !isListening && (
               <div className="flex justify-end">
-                <UnderstandingCard
-                  style="clean"
-                  headline="Processing your voice..."
-                  caption="Converting speech to text, just a moment."
-                  className="bg-stance-steel/80 border-white/10"
-                />
+                <_VoiceProcessingCard />
               </div>
             )}
 
@@ -1121,7 +1168,7 @@ export default function TranscriptionInterface({
                 onClick={handleTextareaClick}
                 onFocus={handleTextareaClick}
                 onKeyDown={handleTextareaKeyDown}
-                placeholder="Record your response or type here..."
+                placeholder="Speak or type your response..."
                 className="min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border border-stance-steel/10 shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:text-stance-grey/30 leading-snug"
                 disabled={isModelSpeaking}
               />
