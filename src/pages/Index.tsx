@@ -172,14 +172,16 @@ const Index = () => {
 
   // Show interview interface
   if (showConversation) {
-    // Use urlUserId if available (from URL params), otherwise use selectedUserId (from form)
-    const userIdToUse = urlUserId || selectedUserId;
-    console.log(`[Index] Showing conversation with userId=${userIdToUse}, formId=${urlFormId}`);
+    // Path params always win — they come directly from the URL so they survive
+    // backend restarts and page refreshes without stale state contamination.
+    const userIdToUse = pathUserId || urlUserId || selectedUserId;
+    const formIdToRender = pathFormId || urlFormId || null;
+    console.log(`[Index] Showing conversation with userId=${userIdToUse}, formId=${formIdToRender}`);
     return (
       <TranscriptionInterface
         userId={userIdToUse}
         userName={selectedUser?.name || ""}
-        initialFormId={urlFormId || null}
+        initialFormId={formIdToRender}
       />
     );
   }
