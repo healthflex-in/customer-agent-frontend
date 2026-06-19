@@ -382,7 +382,9 @@ export default function TranscriptionInterface({
 
     sendTextInput(trimmed);
     setIsUnderstanding(true);
-    setAgentThoughts(null);
+    // Don't clear agentThoughts here — the server sends thought_update immediately
+    // after receiving text_input. Clearing here creates a flash of UnderstandingCard
+    // before AgentThoughtStream appears. Let handleWebSocketMessage clear it on response.
 
     setCurrentTranscript("");
     setEditedTranscript("");
