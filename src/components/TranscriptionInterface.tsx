@@ -96,7 +96,7 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
-  const [showWelcome, setShowWelcome] = useState(true); // show overlay until user acknowledges
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const handleStartRecordingRef = useRef<(() => Promise<void>) | null>(null);
@@ -931,15 +931,6 @@ export default function TranscriptionInterface({
   return (
     <div className="h-screen bg-stance-steel flex flex-col overflow-hidden text-white">
 
-      {/* ── Welcome overlay — shown once before interview starts ── */}
-      {showWelcome && (
-        <WelcomeOverlay
-          formName="Welcome to Stance"
-          formDetails="Please answer a few quick questions to help us understand your current condition and concerns."
-          onProceed={() => setShowWelcome(false)}
-        />
-      )}
-
       {/* ── Header ── */}
       <header className="bg-stance-steel/80 backdrop-blur-md z-10">
         <div className="max-w-5xl mx-auto px-5 py-3 flex flex-col gap-3">
@@ -952,10 +943,13 @@ export default function TranscriptionInterface({
               />
               {interviewState?.section && (
                 <>
-                  <div className="h-3.5 w-px bg-white/20" />
-                  <span className="text-[11px] font-medium text-white/50 tracking-wide">
-                    {interviewState.section}
-                  </span>
+                  <div className="h-3.5 w-px bg-white/15" />
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[9px] uppercase tracking-[0.18em] text-white/35 font-semibold">Phase</span>
+                    <span className="text-[12px] font-medium text-white/70 mt-0.5">
+                      {interviewState.section}
+                    </span>
+                  </div>
                 </>
               )}
             </div>
@@ -1015,8 +1009,40 @@ export default function TranscriptionInterface({
         </div>
 
         <ScrollArea className="flex-1 min-h-0 bg-[#F0F3F8] shadow-[0_-8px_32px_rgba(0,0,0,0.2)] rounded-t-[32px] md:rounded-t-[48px] mt-2">
-          <div className="max-w-3xl mx-auto px-6 py-10 space-y-8 min-h-[calc(100vh-200px)]">
-            {messages.length === 0 ? (
+          <div className="max-w-3xl mx-auto px-6 py-8 space-y-8 min-h-[calc(100vh-200px)]">
+
+            {/* ── Inline welcome card — always shown at top of chat ── */}
+            {!welcomeDismissed && messages.length === 0 && (
+              <div className="flex flex-col items-center gap-5 pt-6 pb-2">
+                {/* Voice vs typing time */}
+                <div className="w-full max-w-sm flex gap-3">
+                  <div className="flex-1 rounded-2xl bg-stance-neon/10 border border-stance-neon/20 px-4 py-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Mic size={11} className="text-stance-neon" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-neon">By voice</span>
+                    </div>
+                    <span className="text-[22px] font-display font-bold text-stance-steel">~3 min</span>
+                  </div>
+                  <div className="flex-1 rounded-2xl bg-stance-steel/5 border border-stance-steel/10 px-4 py-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-steel/40">Typing</span>
+                    </div>
+                    <span className="text-[22px] font-display font-bold text-stance-steel/30">6–10 min</span>
+                  </div>
+                </div>
+                <p className="text-[12px] text-stance-steel/40 italic text-center max-w-xs leading-relaxed">
+                  Tip: Speak into the mic and answer naturally — you'll finish much faster than typing.
+                </p>
+                <button
+                  onClick={() => setWelcomeDismissed(true)}
+                  className="text-[12px] text-stance-steel/40 underline underline-offset-2 hover:text-stance-steel/60 transition-colors"
+                >
+                  Got it, dismiss
+                </button>
+              </div>
+            )}
+
+            {messages.length === 0 && welcomeDismissed ? (
               <div className="flex flex-col items-center text-center space-y-5 pt-20 pb-8">
                 <div className="h-20 w-20 rounded-3xl bg-stance-steel flex items-center justify-center mb-2 shadow-lg">
                   <Mic className="h-9 w-9 text-stance-neon" />
