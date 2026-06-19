@@ -58,6 +58,7 @@ interface UseWebSocketOptions {
   onAttachmentRequest?: (messageText?: string) => void;
   onChatHistory?: (messages: ChatHistoryMessage[]) => void;
   onThoughtUpdate?: (thoughts: ThoughtStage[]) => void;
+  onToken?: (token: string) => void;
 }
 
 export default function useWebSocket({
@@ -73,6 +74,7 @@ export default function useWebSocket({
   onAttachmentRequest,
   onChatHistory,
   onThoughtUpdate,
+  onToken,
 }: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -197,6 +199,11 @@ export default function useWebSocket({
                 audioBuffersRef.current.delete(data.message_id);
               }
             }
+          } else if (data.type === "token") {
+            // LLM streaming token — append to in-progress message
+            if (data.content && onToken) {
+              onToken(data.content as string);
+            }
           } else if (data.type === "thought_update") {
             if (data.thoughts && onThoughtUpdate) {
               onThoughtUpdate(data.thoughts);
@@ -241,7 +248,7 @@ export default function useWebSocket({
       onStatusChange?.("disconnected");
       onError?.(error as Error);
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory, onThoughtUpdate]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect

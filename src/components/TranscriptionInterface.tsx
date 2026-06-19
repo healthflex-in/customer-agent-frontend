@@ -69,6 +69,7 @@ export default function TranscriptionInterface({
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isUnderstanding, setIsUnderstanding] = useState(false);
   const [agentThoughts, setAgentThoughts] = useState<ThoughtStage[] | null>(null);
+  const [streamingToken, setStreamingToken] = useState("");   // tokens arriving in real-time
   const [isListening, setIsListening] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
@@ -331,9 +332,24 @@ export default function TranscriptionInterface({
     setAgentThoughts(thoughts);
   }, []);
 
+  // Accumulate streaming tokens into a live bubble; cleared when text_message arrives
+  const handleToken = useCallback((token: string) => {
+    setStreamingToken(prev => prev + token);
+    setIsUnderstanding(true);  // keep processing card hidden while streaming
+  }, []);
+
+  // When the full text_message arrives, clear the streaming buffer (already added to messages)
+  const handleWebSocketMessageWithTokenClear = useCallback(
+    (message: string, transcription?: string, interviewState?: any, requestAttachment?: boolean) => {
+      setStreamingToken("");   // clear accumulated tokens — final message is now in messages[]
+      handleWebSocketMessage(message, transcription, interviewState, requestAttachment);
+    },
+    [handleWebSocketMessage]
+  );
+
   const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendStartNewForm, sendLoadForm, isConnected } = useWebSocket({
     serverUrl: userId ? getWsUrl(`/ws/${userId}`) : undefined,
-    onMessage: handleWebSocketMessage,
+    onMessage: handleWebSocketMessageWithTokenClear,
     onTranscription: handleTranscriptionStable,
     onAudioStart: handleAudioStart,
     onAudioChunk: handleAudioChunk,
@@ -343,6 +359,7 @@ export default function TranscriptionInterface({
     onAttachmentRequest: handleAttachmentRequest,
     onChatHistory: handleChatHistory,
     onThoughtUpdate: handleThoughtUpdate,
+    onToken: handleToken,
   });
 
   const sendTranscript = useCallback((textToSend: string) => {
@@ -528,7 +545,7 @@ export default function TranscriptionInterface({
   // Auto-scroll — also when listening/understanding state changes so the card is visible
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isListening, isProcessingVoice, isUnderstanding]);
+  }, [messages, isListening, isProcessingVoice, isUnderstanding, streamingToken]);
 
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
@@ -1053,6 +1070,16 @@ export default function TranscriptionInterface({
                   </div>
                 );
               })
+            )}
+
+            {/* Live streaming bubble — shows words appearing as LLM generates them */}
+            {streamingToken && (
+              <div className="flex justify-start">
+                <div className="max-w-[75%] rounded-[18px] px-5 py-3 bg-stance-steel text-white text-sm leading-relaxed shadow-sm">
+                  {streamingToken}
+                  <span className="inline-block w-1.5 h-3.5 bg-stance-neon ml-1 animate-pulse rounded-sm align-middle" />
+                </div>
+              </div>
             )}
 
             {isListening && (
