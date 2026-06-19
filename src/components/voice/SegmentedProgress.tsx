@@ -38,23 +38,24 @@ export default function SegmentedProgress({
     }
   }
 
-  // Count how many sections are complete (from any source).
-  // Then render that many consecutive green segments from the left,
-  // followed by one glowing active segment, followed by pending.
-  // This guarantees a continuous green run regardless of which specific
-  // sections are complete out-of-order.
-  const completedCount = Object.values(completionByName).filter(Boolean).length
-    || Math.max(0, activeIdx); // fallback: sections before active are complete
+  // When overall progress is 100%, show everything complete immediately.
+  const isFullyComplete = overallProgress >= 100;
+
+  // Count completed sections for continuous green run from left.
+  const completedCount = isFullyComplete
+    ? total
+    : (Object.values(completionByName).filter(Boolean).length
+        || Math.max(0, activeIdx));
 
   const states = steps.map((_step, i) => {
     if (i < completedCount) return "complete" as const;
-    if (i === completedCount) return "active" as const;
-    return "pending" as const;
+    if (!isFullyComplete && i === completedCount) return "active" as const;
+    return isFullyComplete ? ("complete" as const) : ("pending" as const);
   });
 
   const labelToShow = activeLabel || steps[activeIdx] || "";
   const completedSteps = states.filter(s => s === "complete").length;
-  const displayProgress = Math.round((completedSteps / total) * 100);
+  const displayProgress = isFullyComplete ? 100 : Math.round((completedSteps / total) * 100);
 
   return (
     <div className={cn("w-full", className)}>
