@@ -56,22 +56,61 @@ interface TranscriptionInterfaceProps {
   initialFormId?: string | null; // null = new form, string = existing form ID
 }
 
-// Rotating processing labels shown while Whisper transcribes (Claude-style)
-const _VOICE_HINTS = ["Understanding...", "Listening...", "Transcribing...", "Mulling...", "Triaging...", "Processing..."];
+// Compact typing-indicator style cards
+const _VOICE_HINTS = ["Understanding...", "Transcribing...", "Processing...", "Analysing...", "Thinking..."];
+
 function _VoiceProcessingCard() {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setIdx(i => (i + 1) % _VOICE_HINTS.length), 1800);
+    const t = setInterval(() => setIdx(i => (i + 1) % _VOICE_HINTS.length), 1600);
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="max-w-[260px] rounded-[18px] bg-[#132644] border border-white/8 px-5 py-4 flex flex-col gap-2 shadow-sm">
-      <span className="text-[13px] font-semibold text-white/90 transition-all duration-500">{_VOICE_HINTS[idx]}</span>
-      <div className="flex gap-1.5">
+    <div className="inline-flex items-center gap-2.5 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm">
+      <div className="flex gap-1">
         {[0,1,2].map(i => (
-          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-neon/60 animate-pulse" style={{ animationDelay: `${i*200}ms` }} />
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-steel/30 animate-bounce"
+            style={{ animationDelay: `${i*150}ms`, animationDuration: '0.9s' }} />
         ))}
       </div>
+      <span className="text-[12px] text-stance-steel/50 font-medium">{_VOICE_HINTS[idx]}</span>
+    </div>
+  );
+}
+
+// ChatGPT-style compact thought stream
+function _CompactThoughtStream({ thoughts }: { thoughts: { stage: string; detail?: string; status: string }[] }) {
+  const active = thoughts.find(t => t.status === "active");
+  const doneCount = thoughts.filter(t => t.status === "done").length;
+  return (
+    <div className="inline-flex items-center gap-2 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm max-w-xs">
+      <div className="flex gap-1">
+        {[0,1,2].map(i => (
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-neon/70 animate-bounce"
+            style={{ animationDelay: `${i*150}ms`, animationDuration: '0.9s' }} />
+        ))}
+      </div>
+      <span className="text-[12px] text-stance-steel/60 font-medium truncate">
+        {active ? active.stage : doneCount > 0 ? "Almost ready..." : "Thinking..."}
+      </span>
+      {doneCount > 0 && (
+        <span className="text-[10px] text-stance-steel/30 flex-shrink-0">{doneCount}/{thoughts.length}</span>
+      )}
+    </div>
+  );
+}
+
+// Compact processing indicator (while LLM responds)
+function _ThinkingDots() {
+  return (
+    <div className="inline-flex items-center gap-2 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm">
+      <div className="flex gap-1">
+        {[0,1,2].map(i => (
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-steel/25 animate-bounce"
+            style={{ animationDelay: `${i*150}ms`, animationDuration: '0.9s' }} />
+        ))}
+      </div>
+      <span className="text-[12px] text-stance-steel/40 font-medium">Sage is thinking</span>
     </div>
   );
 }
@@ -1157,16 +1196,11 @@ export default function TranscriptionInterface({
                     )}
 
                     {isLastUserMessage && isUnderstanding && (
-                      <div className="w-full mt-4 flex justify-start">
+                      <div className="w-full mt-3 flex justify-start">
                         {agentThoughts && agentThoughts.length > 0 ? (
-                          <AgentThoughtStream thoughts={agentThoughts} />
+                          <_CompactThoughtStream thoughts={agentThoughts} />
                         ) : (
-                          <UnderstandingCard
-                            style="clean"
-                            headline="Processing response..."
-                            caption="Our engine is mapping your physical indicators."
-                            className="bg-stance-steel text-white border-none shadow-md"
-                          />
+                          <_ThinkingDots />
                         )}
                       </div>
                     )}
