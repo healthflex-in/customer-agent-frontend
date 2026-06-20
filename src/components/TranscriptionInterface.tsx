@@ -1230,12 +1230,11 @@ export default function TranscriptionInterface({
         </ScrollArea>
       </main>
 
-      {/* Persistent Controls — only shown after mode is chosen */}
+      {/* Persistent Controls — shown after Get Started is clicked */}
       {inputMode !== null && (
         <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-3">
-              {/* Text input — always shown so voice transcription appears here */}
               <div className="relative flex-1">
                 <Textarea
                   ref={textareaRef}
@@ -1244,7 +1243,7 @@ export default function TranscriptionInterface({
                   onClick={handleTextareaClick}
                   onFocus={handleTextareaClick}
                   onKeyDown={handleTextareaKeyDown}
-                  placeholder={inputMode === "voice" ? "Tap mic to speak..." : "Type your response..."}
+                  placeholder="Speak or type your response..."
                   className="min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border border-stance-steel/10 shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:text-stance-grey/30 placeholder:italic leading-snug"
                   disabled={isModelSpeaking}
                 />
@@ -1259,7 +1258,6 @@ export default function TranscriptionInterface({
                 )}
               </div>
 
-              {/* Mic — always available regardless of initial mode choice */}
               <Button
                 onClick={handleMicClick}
                 disabled={!isConnected || isModelSpeaking}
@@ -1276,16 +1274,6 @@ export default function TranscriptionInterface({
                   <Mic className="h-5 w-5 text-white" />
                 )}
               </Button>
-            </div>
-
-            {/* Mode switcher */}
-            <div className="flex justify-center mt-2">
-              <button
-                onClick={() => setInputMode(inputMode === "voice" ? "text" : "voice")}
-                className="text-[11px] text-stance-steel/35 hover:text-stance-steel/60 transition-colors"
-              >
-                Switch to {inputMode === "voice" ? "typing" : "voice"}
-              </button>
             </div>
           </div>
         </div>
