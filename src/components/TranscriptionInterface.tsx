@@ -1041,24 +1041,6 @@ export default function TranscriptionInterface({
                   </p>
                 </div>
 
-                {/* Resume info for returning users */}
-                {interviewState && (
-                  <div className="w-full max-w-xs rounded-2xl bg-stance-steel/5 border border-stance-steel/10 px-5 py-4 text-left">
-                    <p className="text-[10px] uppercase tracking-wider text-stance-steel/40 font-bold mb-2">Your progress</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-stance-steel">{interviewState.section}</span>
-                      <span className="text-[13px] font-bold text-stance-neon">
-                        {Math.round(Math.max(interviewState.progress, interviewState.sectionProgress?.progress ?? 0))}%
-                      </span>
-                    </div>
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-stance-steel/10 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-stance-neon transition-all duration-700"
-                        style={{ width: `${Math.round(Math.max(interviewState.progress, interviewState.sectionProgress?.progress ?? 0))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* Voice vs Text — info cards only, not buttons */}
                 <div className="flex gap-3 w-full max-w-xs">
