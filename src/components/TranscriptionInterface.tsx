@@ -606,10 +606,10 @@ export default function TranscriptionInterface({
   // No auto-start mic — user explicitly clicks the mic button to record,
   // or types in the text box. Both are always available after Get Started.
 
-  // Auto-scroll — also when listening/understanding state changes so the card is visible
+  // Auto-scroll only when new messages arrive or tokens stream in — NOT on mic state changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isListening, isProcessingVoice, isUnderstanding, streamingToken]);
+  }, [messages, streamingToken]);
 
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
