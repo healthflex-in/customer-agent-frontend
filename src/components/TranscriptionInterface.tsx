@@ -564,15 +564,8 @@ export default function TranscriptionInterface({
     }
   }, [isConnected, userId, initialFormId, sendStartInterview]);
 
-  // When user picks voice mode and interview has started (messages arrived), auto-start mic
-  useEffect(() => {
-    if (inputMode === "voice" && messages.length > 0 && isConnected && !isRecording) {
-      const t = setTimeout(() => {
-        handleStartRecordingRef.current?.();
-      }, 600);
-      return () => clearTimeout(t);
-    }
-  }, [inputMode, messages.length, isConnected]);
+  // No auto-start mic — user explicitly clicks the mic button to record,
+  // or types in the text box. Both are always available after Get Started.
 
   // Auto-scroll — also when listening/understanding state changes so the card is visible
   useEffect(() => {
