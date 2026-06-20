@@ -76,23 +76,27 @@ const Index = () => {
   const selectedCenterId = form.watch("centerId");
   const selectedUserId = form.watch("userId");
 
-  // Read from URL path params (/{userId}/{formId}) or fallback to query params on mount
+  // Auto-start interview from URL params — skip login form entirely
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Path params already handled by useParams above — skip if present
+    // Path params (/{userId}/{formId}) are already handled by useParams — skip
     if (pathUserId) return;
 
     const urlParams = new URLSearchParams(window.location.search);
     const FIXED_FORM_ID = "FRM-01";
     const paramUserId = urlParams.get("userId");
+    const paramFormId = urlParams.get("formId") || FIXED_FORM_ID;
     const urlCenterId = urlParams.get("centerId");
 
-    if (paramUserId && urlCenterId) {
-      setUrlFormId(FIXED_FORM_ID);
+    // Auto-start whenever userId is in the URL — centerId is optional
+    if (paramUserId) {
+      setUrlFormId(paramFormId);
       setUrlUserId(paramUserId);
+      if (urlCenterId) {
+        form.setValue("centerId", urlCenterId, { shouldValidate: true });
+      }
       form.setValue("userId", paramUserId, { shouldValidate: true });
-      form.setValue("centerId", urlCenterId, { shouldValidate: true });
       setShowConversation(true);
     }
   }, [form, pathUserId]);
