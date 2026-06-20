@@ -1064,37 +1064,38 @@ export default function TranscriptionInterface({
                   </div>
                 )}
 
-                {/* Voice vs Text choice */}
-                <div className="flex flex-col gap-3 w-full max-w-xs">
-                  <button
-                    onClick={() => setInputMode("voice")}
-                    className="w-full flex items-center justify-between gap-3 bg-stance-steel text-white rounded-2xl px-5 py-4 hover:bg-stance-steel/90 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(14,27,42,0.18)]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-stance-neon/15 flex items-center justify-center flex-shrink-0">
-                        <Mic size={17} className="text-stance-neon" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-[14px] font-semibold leading-tight">Start with Voice</p>
-                        <p className="text-[11px] text-white/50 mt-0.5">Faster · ~3 min</p>
-                      </div>
+                {/* Voice vs Text — info cards only, not buttons */}
+                <div className="flex gap-3 w-full max-w-xs">
+                  <div className="flex-1 rounded-2xl bg-stance-neon/8 border border-stance-neon/15 px-4 py-3.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Mic size={12} className="text-stance-neon" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-neon">Voice</span>
                     </div>
-                    <span className="text-[11px] font-bold text-stance-neon bg-stance-neon/10 rounded-lg px-2 py-1">Recommended</span>
-                  </button>
-
-                  <button
-                    onClick={() => setInputMode("text")}
-                    className="w-full flex items-center gap-3 bg-stance-steel/8 border border-stance-steel/12 text-stance-steel rounded-2xl px-5 py-4 hover:bg-stance-steel/12 active:scale-[0.98] transition-all"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-stance-steel/10 flex items-center justify-center flex-shrink-0">
-                      <Send size={15} className="text-stance-steel/60" />
+                    <p className="text-[22px] font-display font-bold text-stance-steel leading-none">~3 min</p>
+                    <p className="text-[11px] text-stance-steel/40 mt-1">Speak naturally</p>
+                  </div>
+                  <div className="flex-1 rounded-2xl bg-stance-steel/5 border border-stance-steel/8 px-4 py-3.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Send size={11} className="text-stance-steel/40" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-steel/40">Text</span>
                     </div>
-                    <div className="text-left">
-                      <p className="text-[14px] font-semibold leading-tight">Type instead</p>
-                      <p className="text-[11px] text-stance-steel/40 mt-0.5">6–10 min</p>
-                    </div>
-                  </button>
+                    <p className="text-[22px] font-display font-bold text-stance-steel/30 leading-none">6–10 min</p>
+                    <p className="text-[11px] text-stance-steel/30 mt-1">Type your answers</p>
+                  </div>
                 </div>
+
+                <p className="text-[11px] text-stance-steel/35 italic">
+                  Tip: Voice is much faster — just speak naturally.
+                </p>
+
+                {/* Single CTA */}
+                <button
+                  onClick={() => setInputMode("voice")}
+                  className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-steel text-white font-semibold text-[15px] rounded-2xl py-4 px-6 hover:bg-stance-steel/90 active:scale-[0.98] transition-all shadow-[0_4px_24px_rgba(14,27,42,0.2)]"
+                >
+                  Get Started
+                  <Mic size={16} className="text-stance-neon" />
+                </button>
 
               </div>
             ) : (
