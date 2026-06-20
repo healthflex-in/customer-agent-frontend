@@ -1021,8 +1021,11 @@ export default function TranscriptionInterface({
         <ScrollArea className="flex-1 min-h-0 bg-[#F0F3F8] shadow-[0_-8px_32px_rgba(0,0,0,0.2)] rounded-t-[32px] md:rounded-t-[48px] mt-2">
           <div className="max-w-3xl mx-auto px-6 py-8 space-y-8 min-h-[calc(100vh-200px)]">
 
-            {/* ── Ready / Resume screen — shown until user picks voice or text ── */}
-            {messages.length === 0 && inputMode === null ? (
+            {/* ── Ready / Resume screen — shown until user clicks Get Started ──
+                 Condition is inputMode === null ONLY, not message count.
+                 Returning users get messages in the background before clicking,
+                 but they still see this screen first. ── */}
+            {inputMode === null ? (
               <div className="flex flex-col items-center text-center gap-8 pt-16 pb-8 min-h-[60vh] justify-center">
 
                 {/* Big mic icon — like the original */}
