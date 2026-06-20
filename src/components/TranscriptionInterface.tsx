@@ -651,8 +651,6 @@ export default function TranscriptionInterface({
       isRecordingRef.current = true;
       await startRecording();
       setIsListening(true);
-      // Scroll to bottom so user sees the listening card
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (error: any) {
       isRecordingRef.current = false;
       audioStartSentRef.current = false;
@@ -971,7 +969,7 @@ export default function TranscriptionInterface({
   }, [messages]);
 
   return (
-    <div className="h-screen bg-stance-steel flex flex-col overflow-hidden text-white">
+    <div className="h-[100dvh] bg-stance-steel flex flex-col overflow-hidden overflow-x-hidden text-white">
 
       {/* ── Header ── */}
       <header className="bg-stance-steel/80 backdrop-blur-md z-10">
@@ -1051,7 +1049,7 @@ export default function TranscriptionInterface({
         </div>
 
         <ScrollArea className="flex-1 min-h-0 bg-[#F0F3F8] shadow-[0_-8px_32px_rgba(0,0,0,0.2)] rounded-t-[32px] md:rounded-t-[48px] mt-2">
-          <div className="max-w-3xl mx-auto px-6 py-8 space-y-8 min-h-[calc(100vh-200px)]">
+          <div className="max-w-3xl mx-auto px-6 py-8 space-y-8 min-h-[calc(100dvh-200px)]">
 
             {/* ── Ready / Resume screen — shown until user clicks Get Started ──
                  Condition is inputMode === null ONLY, not message count.

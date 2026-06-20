@@ -108,6 +108,7 @@
 
   html {
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
   }
 
   body {
@@ -115,6 +116,9 @@
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    /* Prevent iOS bounce scroll from causing layout shifts */
+    overscroll-behavior: none;
   }
 
   .font-display,
