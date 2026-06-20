@@ -1069,15 +1069,17 @@ export default function TranscriptionInterface({
 
                 {/* Voice vs Text — info cards only, not buttons */}
                 <div className="flex gap-3 w-full max-w-xs">
-                  <div className="flex-1 rounded-2xl bg-stance-neon/8 border border-stance-neon/15 px-4 py-3.5">
+                  {/* Voice card — solid dark background for contrast */}
+                  <div className="flex-1 rounded-2xl bg-stance-steel px-4 py-3.5">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Mic size={12} className="text-stance-neon" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-stance-neon">Voice</span>
                     </div>
-                    <p className="text-[22px] font-display font-bold text-stance-steel leading-none">~3 min</p>
-                    <p className="text-[11px] text-stance-steel/40 mt-1">Speak naturally</p>
+                    <p className="text-[22px] font-display font-bold text-white leading-none">~3 min</p>
+                    <p className="text-[11px] text-white/50 mt-1">Speak naturally</p>
                   </div>
-                  <div className="flex-1 rounded-2xl bg-stance-steel/5 border border-stance-steel/8 px-4 py-3.5">
+                  {/* Text card — muted */}
+                  <div className="flex-1 rounded-2xl bg-white border border-stance-steel/10 px-4 py-3.5">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Send size={11} className="text-stance-steel/40" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-stance-steel/40">Text</span>
