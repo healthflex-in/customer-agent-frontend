@@ -969,7 +969,7 @@ export default function TranscriptionInterface({
   }, [messages]);
 
   return (
-    <div className="h-[100dvh] bg-stance-steel flex flex-col overflow-hidden overflow-x-hidden text-white">
+    <div className="h-[100dvh] bg-stance-steel flex flex-col overflow-hidden overflow-x-hidden text-white" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
 
       {/* ── Header ── */}
       <header className="bg-stance-steel/80 backdrop-blur-md z-10">
@@ -1241,7 +1241,7 @@ export default function TranscriptionInterface({
 
       {/* Persistent Controls — shown after Get Started is clicked */}
       {inputMode !== null && (
-        <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20">
+        <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
