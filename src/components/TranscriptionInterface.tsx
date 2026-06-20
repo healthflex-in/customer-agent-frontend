@@ -96,7 +96,7 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
-  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [inputMode, setInputMode] = useState<"voice" | "text" | null>(null); // null = show ready screen
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const handleStartRecordingRef = useRef<(() => Promise<void>) | null>(null);
@@ -564,6 +564,16 @@ export default function TranscriptionInterface({
     }
   }, [isConnected, userId, initialFormId, sendStartInterview]);
 
+  // When user picks voice mode and interview has started (messages arrived), auto-start mic
+  useEffect(() => {
+    if (inputMode === "voice" && messages.length > 0 && isConnected && !isRecording) {
+      const t = setTimeout(() => {
+        handleStartRecordingRef.current?.();
+      }, 600);
+      return () => clearTimeout(t);
+    }
+  }, [inputMode, messages.length, isConnected]);
+
   // Auto-scroll — also when listening/understanding state changes so the card is visible
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1011,47 +1021,81 @@ export default function TranscriptionInterface({
         <ScrollArea className="flex-1 min-h-0 bg-[#F0F3F8] shadow-[0_-8px_32px_rgba(0,0,0,0.2)] rounded-t-[32px] md:rounded-t-[48px] mt-2">
           <div className="max-w-3xl mx-auto px-6 py-8 space-y-8 min-h-[calc(100vh-200px)]">
 
-            {/* ── Inline welcome card — always shown at top of chat ── */}
-            {!welcomeDismissed && messages.length === 0 && (
-              <div className="flex flex-col items-center gap-5 pt-6 pb-2">
-                {/* Voice vs typing time */}
-                <div className="w-full max-w-sm flex gap-3">
-                  <div className="flex-1 rounded-2xl bg-stance-neon/10 border border-stance-neon/20 px-4 py-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Mic size={11} className="text-stance-neon" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-neon">By voice</span>
-                    </div>
-                    <span className="text-[22px] font-display font-bold text-stance-steel">~3 min</span>
-                  </div>
-                  <div className="flex-1 rounded-2xl bg-stance-steel/5 border border-stance-steel/10 px-4 py-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-steel/40">Typing</span>
-                    </div>
-                    <span className="text-[22px] font-display font-bold text-stance-steel/30">6–10 min</span>
-                  </div>
-                </div>
-                <p className="text-[12px] text-stance-steel/40 italic text-center max-w-xs leading-relaxed">
-                  Tip: Speak into the mic and answer naturally — you'll finish much faster than typing.
-                </p>
-                <button
-                  onClick={() => setWelcomeDismissed(true)}
-                  className="text-[12px] text-stance-steel/40 underline underline-offset-2 hover:text-stance-steel/60 transition-colors"
-                >
-                  Got it, dismiss
-                </button>
-              </div>
-            )}
+            {/* ── Ready / Resume screen — shown until user picks voice or text ── */}
+            {messages.length === 0 && inputMode === null ? (
+              <div className="flex flex-col items-center text-center gap-8 pt-16 pb-8 min-h-[60vh] justify-center">
 
-            {messages.length === 0 && welcomeDismissed ? (
-              <div className="flex flex-col items-center text-center space-y-5 pt-20 pb-8">
-                <div className="h-20 w-20 rounded-3xl bg-stance-steel flex items-center justify-center mb-2 shadow-lg">
-                  <Mic className="h-9 w-9 text-stance-neon" />
+                {/* Big mic icon — like the original */}
+                <div className="h-24 w-24 rounded-[28px] bg-stance-steel flex items-center justify-center shadow-[0_8px_32px_rgba(14,27,42,0.18)]">
+                  <Mic className="h-10 w-10 text-stance-neon" />
                 </div>
-                <div className="space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-stance-steel/40">Stance Health · Live Interview</p>
-                  <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-stance-steel">Ready to begin?</h2>
+
+                {/* Headline */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-stance-steel/40">
+                    Stance Health · Live Interview
+                  </p>
+                  <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-stance-steel">
+                    {interviewState ? "Resume your session" : "Ready to begin?"}
+                  </h2>
+                  <p className="text-stance-grey/50 max-w-xs mx-auto text-sm leading-relaxed">
+                    {interviewState
+                      ? "Pick up right where you left off."
+                      : "Choose how you'd like to answer — voice is faster."}
+                  </p>
                 </div>
-                <p className="text-stance-grey/60 max-w-xs text-sm md:text-base leading-relaxed">Start speaking or type your response below. Your consultation is being recorded in real-time.</p>
+
+                {/* Resume info for returning users */}
+                {interviewState && (
+                  <div className="w-full max-w-xs rounded-2xl bg-stance-steel/5 border border-stance-steel/10 px-5 py-4 text-left">
+                    <p className="text-[10px] uppercase tracking-wider text-stance-steel/40 font-bold mb-2">Your progress</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-medium text-stance-steel">{interviewState.section}</span>
+                      <span className="text-[13px] font-bold text-stance-neon">
+                        {Math.round(Math.max(interviewState.progress, interviewState.sectionProgress?.progress ?? 0))}%
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-stance-steel/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-stance-neon transition-all duration-700"
+                        style={{ width: `${Math.round(Math.max(interviewState.progress, interviewState.sectionProgress?.progress ?? 0))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Voice vs Text choice */}
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                  <button
+                    onClick={() => setInputMode("voice")}
+                    className="w-full flex items-center justify-between gap-3 bg-stance-steel text-white rounded-2xl px-5 py-4 hover:bg-stance-steel/90 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(14,27,42,0.18)]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-stance-neon/15 flex items-center justify-center flex-shrink-0">
+                        <Mic size={17} className="text-stance-neon" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[14px] font-semibold leading-tight">Start with Voice</p>
+                        <p className="text-[11px] text-white/50 mt-0.5">Faster · ~3 min</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold text-stance-neon bg-stance-neon/10 rounded-lg px-2 py-1">Recommended</span>
+                  </button>
+
+                  <button
+                    onClick={() => setInputMode("text")}
+                    className="w-full flex items-center gap-3 bg-stance-steel/8 border border-stance-steel/12 text-stance-steel rounded-2xl px-5 py-4 hover:bg-stance-steel/12 active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-stance-steel/10 flex items-center justify-center flex-shrink-0">
+                      <Send size={15} className="text-stance-steel/60" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[14px] font-semibold leading-tight">Type instead</p>
+                      <p className="text-[11px] text-stance-steel/40 mt-0.5">6–10 min</p>
+                    </div>
+                  </button>
+                </div>
+
               </div>
             ) : (
               messages.map((message, index) => {
@@ -1182,52 +1226,66 @@ export default function TranscriptionInterface({
         </ScrollArea>
       </main>
 
-      {/* Persistent Controls */}
-      <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Textarea
-                ref={textareaRef}
-                value={editedTranscript || currentTranscript}
-                onChange={(e) => handleTextChange(e.target.value)}
-                onClick={handleTextareaClick}
-                onFocus={handleTextareaClick}
-                onKeyDown={handleTextareaKeyDown}
-                placeholder="Speak or type your response..."
-                className="min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border border-stance-steel/10 shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:text-stance-grey/30 leading-snug"
-                disabled={isModelSpeaking}
-              />
-              {(editedTranscript.trim() || currentTranscript.trim()) && (
-                <Button
-                  onClick={handleSendMessage}
-                  size="icon"
-                  className="absolute right-3 bottom-3 h-8 w-8 rounded-xl bg-stance-steel text-white hover:bg-stance-grey transition-all shadow-md"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
+      {/* Persistent Controls — only shown after mode is chosen */}
+      {inputMode !== null && (
+        <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-3">
+              {/* Text input — always shown so voice transcription appears here */}
+              <div className="relative flex-1">
+                <Textarea
+                  ref={textareaRef}
+                  value={editedTranscript || currentTranscript}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  onClick={handleTextareaClick}
+                  onFocus={handleTextareaClick}
+                  onKeyDown={handleTextareaKeyDown}
+                  placeholder={inputMode === "voice" ? "Tap mic to speak..." : "Type your response..."}
+                  className="min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border border-stance-steel/10 shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:text-stance-grey/30 placeholder:italic leading-snug"
+                  disabled={isModelSpeaking}
+                />
+                {(editedTranscript.trim() || currentTranscript.trim()) && (
+                  <Button
+                    onClick={handleSendMessage}
+                    size="icon"
+                    className="absolute right-3 bottom-3 h-8 w-8 rounded-xl bg-stance-steel text-white hover:bg-stance-grey transition-all shadow-md"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Mic — always available regardless of initial mode choice */}
+              <Button
+                onClick={handleMicClick}
+                disabled={!isConnected || isModelSpeaking}
+                className={cn(
+                  "rounded-full w-14 h-14 flex-shrink-0 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95",
+                  isRecording
+                    ? "bg-red-500 hover:bg-red-600 shadow-red-500/30"
+                    : "bg-stance-steel hover:bg-stance-steel/90 shadow-stance-steel/30 ring-2 ring-stance-neon ring-offset-2 ring-offset-[#F0F3F8]"
+                )}
+              >
+                {isRecording ? (
+                  <Square className="h-5 w-5 fill-white text-white animate-pulse" />
+                ) : (
+                  <Mic className="h-5 w-5 text-white" />
+                )}
+              </Button>
             </div>
 
-            <Button
-              onClick={handleMicClick}
-              disabled={!isConnected || isModelSpeaking}
-              className={cn(
-                "rounded-full w-14 h-14 flex-shrink-0 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95",
-                isRecording
-                  ? "bg-red-500 hover:bg-red-600 shadow-red-500/30"
-                  : "bg-stance-steel hover:bg-stance-steel/90 shadow-stance-steel/30 ring-2 ring-stance-neon ring-offset-2 ring-offset-[#F0F3F8]"
-              )}
-            >
-              {isRecording ? (
-                <Square className="h-5 w-5 fill-white text-white animate-pulse" />
-              ) : (
-                <Mic className="h-5 w-5 text-white" />
-              )}
-            </Button>
+            {/* Mode switcher */}
+            <div className="flex justify-center mt-2">
+              <button
+                onClick={() => setInputMode(inputMode === "voice" ? "text" : "voice")}
+                className="text-[11px] text-stance-steel/35 hover:text-stance-steel/60 transition-colors"
+              >
+                Switch to {inputMode === "voice" ? "typing" : "voice"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
