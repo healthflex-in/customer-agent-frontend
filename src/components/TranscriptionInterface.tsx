@@ -175,10 +175,10 @@ export default function TranscriptionInterface({
 
   // Handle real-time transcription from server
   const handleTranscription = useCallback((transcription: string) => {
-    // Hide listening card — mic is no longer active
+    // Hide listening card and the voice-processing indicator as soon as the
+    // transcription text arrives — this is when the text lands in the textarea.
     setIsListening(false);
-    // Keep isProcessingVoice=true so the "Transcribing / Processing / Thinking..." card
-    // keeps running until the text is actually sent (cleared in sendTranscript below).
+    setIsProcessingVoice(false);  // indicator goes away when text is populated
     if (transcription && transcription.trim()) {
       const trimmedTranscription = transcription.trim();
       pendingTranscriptionRef.current = trimmedTranscription;
@@ -462,7 +462,6 @@ export default function TranscriptionInterface({
     });
 
     sendTextInput(trimmed);
-    setIsProcessingVoice(false);  // text is now sent — stop the voice processing indicator
     setIsUnderstanding(true);
     // Don't clear agentThoughts here — the server sends thought_update immediately
     // after receiving text_input. Clearing here creates a flash of UnderstandingCard
@@ -1263,9 +1262,14 @@ export default function TranscriptionInterface({
                   onClick={handleTextareaClick}
                   onFocus={handleTextareaClick}
                   onKeyDown={handleTextareaKeyDown}
-                  placeholder="Speak or type your response..."
-                  className="min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border border-stance-steel/10 shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:text-stance-grey/30 placeholder:italic leading-snug"
-                  disabled={isModelSpeaking}
+                  placeholder={isProcessingVoice ? "Transcribing your voice..." : "Speak or type your response..."}
+                  className={cn(
+                    "min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:italic leading-snug",
+                    isProcessingVoice
+                      ? "border-stance-neon/40 placeholder:text-stance-neon/50 cursor-not-allowed opacity-70"
+                      : "border-stance-steel/10 placeholder:text-stance-grey/30"
+                  )}
+                  disabled={isModelSpeaking || isProcessingVoice}
                 />
                 {(editedTranscript.trim() || currentTranscript.trim()) && (
                   <Button
@@ -1280,7 +1284,7 @@ export default function TranscriptionInterface({
 
               <Button
                 onClick={handleMicClick}
-                disabled={!isConnected || isModelSpeaking}
+                disabled={!isConnected || isModelSpeaking || isProcessingVoice}
                 className={cn(
                   "rounded-full w-14 h-14 flex-shrink-0 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95",
                   isRecording
