@@ -175,9 +175,10 @@ export default function TranscriptionInterface({
 
   // Handle real-time transcription from server
   const handleTranscription = useCallback((transcription: string) => {
-    // Hide both listening and processing-voice cards when transcription arrives
+    // Hide listening card — mic is no longer active
     setIsListening(false);
-    setIsProcessingVoice(false);
+    // Keep isProcessingVoice=true so the "Transcribing / Processing / Thinking..." card
+    // keeps running until the text is actually sent (cleared in sendTranscript below).
     if (transcription && transcription.trim()) {
       const trimmedTranscription = transcription.trim();
       pendingTranscriptionRef.current = trimmedTranscription;
@@ -461,6 +462,7 @@ export default function TranscriptionInterface({
     });
 
     sendTextInput(trimmed);
+    setIsProcessingVoice(false);  // text is now sent — stop the voice processing indicator
     setIsUnderstanding(true);
     // Don't clear agentThoughts here — the server sends thought_update immediately
     // after receiving text_input. Clearing here creates a flash of UnderstandingCard
@@ -702,13 +704,14 @@ export default function TranscriptionInterface({
     // Send audio_end message
     sendAudioEnd(duration);
 
-    // Switch from listening → processing voice while Whisper transcribes
+    // Switch from listening → processing voice while Whisper transcribes + auto-sends
     setIsListening(false);
     setIsProcessingVoice(true);
-    // Safety timeout: hide if transcription doesn't arrive within 8 seconds
+    // Safety timeout: hide if transcription + send never arrive (e.g. network drop)
+    // 45s covers even long voice recordings on the base Whisper model
     setTimeout(() => {
       setIsProcessingVoice(false);
-    }, 8000);
+    }, 45000);
 
     // Reset chunk tracking
     lastChunkTimeRef.current = 0;
@@ -1069,10 +1072,12 @@ export default function TranscriptionInterface({
                     Stance Health · Live Interview
                   </p>
                   <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-stance-steel">
-                    {interviewState ? "Resume your session" : "Ready to begin?"}
+                    {(messages.length > 0 || (interviewState && interviewState.progress > 5))
+                      ? "Resume your session"
+                      : "Ready to begin?"}
                   </h2>
                   <p className="text-stance-grey/50 max-w-xs mx-auto text-sm leading-relaxed">
-                    {interviewState
+                    {(messages.length > 0 || (interviewState && interviewState.progress > 5))
                       ? "Pick up right where you left off."
                       : "Choose how you'd like to answer — voice is faster."}
                   </p>
@@ -1185,7 +1190,13 @@ export default function TranscriptionInterface({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setPendingUploadRequest(false)}
+                          onClick={() => {
+                            setPendingUploadRequest(false);
+                            // Tell the server the user has no reports so the interview continues
+                            if (sendTranscriptRef.current) {
+                              sendTranscriptRef.current("I don't have any reports to upload.");
+                            }
+                          }}
                           className="text-stance-grey/40 hover:text-stance-grey/70 text-xs h-9 px-3 rounded-xl"
                         >
                           Skip
