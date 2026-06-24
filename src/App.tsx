@@ -7,13 +7,19 @@ import { Navigate, useParams } from "react-router-dom";
 import Index from "./pages/Index";
 import FormPage from "./pages/FormPage";
 import DirectFormPage from "./pages/DirectFormPage";
-import ConsentPage from "./pages/ConsentPage";
 import NotFound from "./pages/NotFound";
 
 // Redirects /:userId → /:userId/FRM-01
 function UserRedirect() {
   const { userId } = useParams<{ userId: string }>();
   return <Navigate to={`/${userId}/FRM-01`} replace />;
+}
+
+// Redirect /consent/:userId → external consent site
+function ConsentRedirect() {
+  const { userId } = useParams<{ userId: string }>();
+  window.location.replace(`https://consent.stance.health/${userId}`);
+  return null;
 }
 
 const queryClient = new QueryClient();
@@ -26,8 +32,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* Consent gate: check/accept consent before entering the interview */}
-          <Route path="/consent/:userId" element={<ConsentPage />} />
+          {/* /consent/:userId → redirect to real external consent site */}
+          <Route path="/consent/:userId" element={<ConsentRedirect />} />
           {/* Clean URL: /{userId}/{formId} — deep-linkable interview sessions */}
           <Route path="/:userId/:formId" element={<Index />} />
           {/* /:userId without formId — redirect to default form */}

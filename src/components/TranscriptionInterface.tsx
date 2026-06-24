@@ -1133,17 +1133,18 @@ export default function TranscriptionInterface({
                   Tip: Voice is much faster — just speak naturally.
                 </p>
 
-                {/* Consent gate */}
+                {/* Consent gate — open external consent site, return here when done */}
                 {consentAccepted === false && (
-                  <a
-                    href={`https://consent.stance.health/${userId}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => {
+                      const returnUrl = encodeURIComponent(window.location.href);
+                      window.location.href = `https://consent.stance.health/${userId}?returnUrl=${returnUrl}`;
+                    }}
                     className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
                   >
                     <ShieldCheck size={16} />
                     Accept Consent to Continue
-                  </a>
+                  </button>
                 )}
 
                 {/* Get Started — disabled until consent accepted */}
