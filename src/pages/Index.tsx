@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import TranscriptionInterface from "@/components/TranscriptionInterface";
+import { getApiUrl } from "@/config/api";
+
+type ConsentState = "checking" | "ok" | "required";
 
 export default function Index() {
   const { userId: pathUserId, formId: pathFormId } = useParams<{ userId?: string; formId?: string }>();
@@ -9,6 +12,7 @@ export default function Index() {
   const [userId, setUserId] = useState<string>("");
   const [formId, setFormId] = useState<string>("");
   const [ready, setReady] = useState(false);
+  const [consentState, setConsentState] = useState<ConsentState>("checking");
 
   useEffect(() => {
     // Priority 1: path params /{userId}/{formId}
@@ -33,6 +37,39 @@ export default function Index() {
       setReady(true);
     }
   }, [pathUserId, pathFormId]);
+
+  // Consent gate: check before showing interview
+  useEffect(() => {
+    if (!ready || !userId) return;
+    fetch(getApiUrl(`/api/users/${userId}/consent`))
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.consentAccepted) {
+          setConsentState("ok");
+        } else {
+          setConsentState("required");
+          navigate(`/consent/${userId}`, { replace: true });
+        }
+      })
+      .catch(() => {
+        // If consent check fails (network error), allow through to avoid blocking
+        setConsentState("ok");
+      });
+  }, [ready, userId]);
+
+  // Consent still being checked — show spinner (redirect happens in useEffect)
+  if (ready && consentState === "checking") {
+    return (
+      <div className="min-h-screen bg-[#0E1B2A] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#C8FF00] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Consent required — redirect is triggered in useEffect, show nothing
+  if (ready && consentState === "required") {
+    return null;
+  }
 
   // No userId in URL — show a simple access-denied message
   if (!ready) {
