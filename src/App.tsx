@@ -3,11 +3,18 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import Index from "./pages/Index";
 import FormPage from "./pages/FormPage";
 import DirectFormPage from "./pages/DirectFormPage";
 import ConsentPage from "./pages/ConsentPage";
 import NotFound from "./pages/NotFound";
+
+// Redirects /:userId → /:userId/FRM-01
+function UserRedirect() {
+  const { userId } = useParams<{ userId: string }>();
+  return <Navigate to={`/${userId}/FRM-01`} replace />;
+}
 
 const queryClient = new QueryClient();
 
@@ -23,6 +30,8 @@ const App = () => (
           <Route path="/consent/:userId" element={<ConsentPage />} />
           {/* Clean URL: /{userId}/{formId} — deep-linkable interview sessions */}
           <Route path="/:userId/:formId" element={<Index />} />
+          {/* /:userId without formId — redirect to default form */}
+          <Route path="/:userId" element={<UserRedirect />} />
           <Route
             path="/:formKey/:patientId/:appointmentId"
             element={<FormPage />}

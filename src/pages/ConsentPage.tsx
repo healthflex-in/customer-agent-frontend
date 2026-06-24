@@ -37,7 +37,7 @@ export default function ConsentPage() {
   // Redirect to interview once accepted
   useEffect(() => {
     if (status === "accepted" && userId) {
-      navigate(`/${userId}`, { replace: true });
+      navigate(`/${userId}/FRM-01`, { replace: true });
     }
   }, [status, userId, navigate]);
 
