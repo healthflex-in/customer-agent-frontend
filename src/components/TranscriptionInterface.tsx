@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, Save, Trash2, Send, Square, Paperclip } from "lucide-react";
+import { Mic, Save, Trash2, Send, Square, Paperclip, ShieldCheck } from "lucide-react";
+import { getApiUrl } from "@/config/api";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -132,6 +133,7 @@ export default function TranscriptionInterface({
   const [streamingToken, setStreamingToken] = useState("");   // tokens arriving in real-time
   const [isListening, setIsListening] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState<boolean | null>(null); // null = checking
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
@@ -168,6 +170,28 @@ export default function TranscriptionInterface({
       }
     }
   }, []);
+
+  // ── Consent check ────────────────────────────────────────────────────────────
+  const checkConsent = useCallback(() => {
+    if (!userId) return;
+    fetch(getApiUrl(`/api/users/${userId}/consent`))
+      .then((r) => r.json())
+      .then((data) => setConsentAccepted(!!data.consentAccepted))
+      .catch(() => setConsentAccepted(true)); // fail open — don't block patient
+  }, [userId]);
+
+  useEffect(() => {
+    checkConsent();
+  }, [checkConsent]);
+
+  // Re-check when user returns to this tab (they may have accepted on consent.stance.health)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") checkConsent();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [checkConsent]);
 
   // Keep URL in sync with current user and form so that the outer app / backend
   // can read userId + formId from query params if needed.
@@ -1109,13 +1133,34 @@ export default function TranscriptionInterface({
                   Tip: Voice is much faster — just speak naturally.
                 </p>
 
-                {/* Single CTA */}
+                {/* Consent gate */}
+                {consentAccepted === false && (
+                  <a
+                    href={`https://consent.stance.health/${userId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
+                  >
+                    <ShieldCheck size={16} />
+                    Accept Consent to Continue
+                  </a>
+                )}
+
+                {/* Get Started — disabled until consent accepted */}
                 <button
-                  onClick={() => setInputMode("voice")}
-                  className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-steel text-white font-semibold text-[15px] rounded-2xl py-4 px-6 hover:bg-stance-steel/90 active:scale-[0.98] transition-all shadow-[0_4px_24px_rgba(14,27,42,0.2)]"
+                  onClick={() => consentAccepted && setInputMode("voice")}
+                  disabled={consentAccepted === false}
+                  className={cn(
+                    "w-full max-w-xs flex items-center justify-center gap-2 font-semibold text-[15px] rounded-2xl py-4 px-6 transition-all",
+                    consentAccepted === false
+                      ? "bg-stance-steel/30 text-white/30 cursor-not-allowed"
+                      : consentAccepted === null
+                      ? "bg-stance-steel/50 text-white/50 cursor-wait"
+                      : "bg-stance-steel text-white hover:bg-stance-steel/90 active:scale-[0.98] shadow-[0_4px_24px_rgba(14,27,42,0.2)]"
+                  )}
                 >
                   Get Started
-                  <Mic size={16} className="text-stance-neon" />
+                  <Mic size={16} className={consentAccepted ? "text-stance-neon" : "text-white/30"} />
                 </button>
 
               </div>
