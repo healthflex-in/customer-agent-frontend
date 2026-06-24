@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import FormPage from "./pages/FormPage";
 import DirectFormPage from "./pages/DirectFormPage";
+import ConsentPage from "./pages/ConsentPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -18,6 +19,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          {/* Consent gate: check/accept consent before entering the interview */}
+          <Route path="/consent/:userId" element={<ConsentPage />} />
           {/* Clean URL: /{userId}/{formId} — deep-linkable interview sessions */}
           <Route path="/:userId/:formId" element={<Index />} />
           <Route
