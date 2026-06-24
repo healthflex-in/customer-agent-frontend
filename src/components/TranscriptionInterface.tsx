@@ -172,21 +172,11 @@ export default function TranscriptionInterface({
   }, []);
 
   // ── Consent check ────────────────────────────────────────────────────────────
-  const consentPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const checkConsent = useCallback(() => {
     if (!userId) return;
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
-      .then((data) => {
-        const accepted = !!data.consentAccepted;
-        setConsentAccepted(accepted);
-        // Once accepted, stop polling
-        if (accepted && consentPollingRef.current) {
-          clearInterval(consentPollingRef.current);
-          consentPollingRef.current = null;
-        }
-      })
+      .then((data) => setConsentAccepted(!!data.consentAccepted))
       .catch(() => setConsentAccepted(true)); // fail open — don't block patient
   }, [userId]);
 
@@ -194,7 +184,7 @@ export default function TranscriptionInterface({
     checkConsent();
   }, [checkConsent]);
 
-  // Re-check when user returns to this tab
+  // Re-check the moment the user returns to this tab after accepting consent externally
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") checkConsent();
@@ -202,21 +192,6 @@ export default function TranscriptionInterface({
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [checkConsent]);
-
-  // Start polling when consent tab is opened, stop when accepted
-  const startConsentPolling = useCallback(() => {
-    if (consentPollingRef.current) return; // already polling
-    consentPollingRef.current = setInterval(() => {
-      checkConsent();
-    }, 3000); // poll every 3s
-  }, [checkConsent]);
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (consentPollingRef.current) clearInterval(consentPollingRef.current);
-    };
-  }, []);
 
   // Keep URL in sync with current user and form so that the outer app / backend
   // can read userId + formId from query params if needed.
@@ -1158,25 +1133,15 @@ export default function TranscriptionInterface({
                   Tip: Voice is much faster — just speak naturally.
                 </p>
 
-                {/* Consent gate — open in new tab, poll until accepted */}
+                {/* Consent gate — opens external consent site in new tab */}
                 {consentAccepted === false && (
-                  <div className="w-full max-w-xs flex flex-col items-center gap-2">
-                    <button
-                      onClick={() => {
-                        window.open(`https://consent.stance.health/${userId}`, "_blank", "noopener");
-                        startConsentPolling(); // auto-detect when they accept
-                      }}
-                      className="w-full flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
-                    >
-                      <ShieldCheck size={16} />
-                      Accept Consent to Continue
-                    </button>
-                    {consentPollingRef.current && (
-                      <p className="text-[11px] text-stance-steel/40 text-center">
-                        Waiting for consent... complete it in the new tab.
-                      </p>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => window.open(`https://consent.stance.health/${userId}`, "_blank", "noopener")}
+                    className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
+                  >
+                    <ShieldCheck size={16} />
+                    Accept Consent to Continue
+                  </button>
                 )}
 
                 {/* Get Started — disabled until consent accepted */}
