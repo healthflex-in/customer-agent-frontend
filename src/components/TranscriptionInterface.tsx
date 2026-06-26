@@ -67,14 +67,14 @@ function _VoiceProcessingCard() {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="inline-flex items-center gap-2.5 bg-white border border-stance-mint/8 rounded-2xl px-4 py-2.5 shadow-sm">
+    <div className="inline-flex items-center gap-2.5 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm">
       <div className="flex gap-1">
         {[0,1,2].map(i => (
-          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-mint/30 animate-bounce"
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-steel/30 animate-bounce"
             style={{ animationDelay: `${i*150}ms`, animationDuration: '0.9s' }} />
         ))}
       </div>
-      <span className="text-[12px] text-stance-mint/50 font-medium">{_VOICE_HINTS[idx]}</span>
+      <span className="text-[12px] text-stance-steel/50 font-medium">{_VOICE_HINTS[idx]}</span>
     </div>
   );
 }
@@ -84,18 +84,18 @@ function _CompactThoughtStream({ thoughts }: { thoughts: { stage: string; detail
   const active = thoughts.find(t => t.status === "active");
   const doneCount = thoughts.filter(t => t.status === "done").length;
   return (
-    <div className="inline-flex items-center gap-2 bg-white border border-stance-mint/8 rounded-2xl px-4 py-2.5 shadow-sm max-w-xs">
+    <div className="inline-flex items-center gap-2 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm max-w-xs">
       <div className="flex gap-1">
         {[0,1,2].map(i => (
           <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-neon/70 animate-bounce"
             style={{ animationDelay: `${i*150}ms`, animationDuration: '0.9s' }} />
         ))}
       </div>
-      <span className="text-[12px] text-stance-mint/60 font-medium truncate">
+      <span className="text-[12px] text-stance-steel/60 font-medium truncate">
         {active ? active.stage : doneCount > 0 ? "Almost ready..." : "Thinking..."}
       </span>
       {doneCount > 0 && (
-        <span className="text-[10px] text-stance-mint/30 flex-shrink-0">{doneCount}/{thoughts.length}</span>
+        <span className="text-[10px] text-stance-steel/30 flex-shrink-0">{doneCount}/{thoughts.length}</span>
       )}
     </div>
   );
@@ -104,14 +104,14 @@ function _CompactThoughtStream({ thoughts }: { thoughts: { stage: string; detail
 // Compact processing indicator (while LLM responds)
 function _ThinkingDots() {
   return (
-    <div className="inline-flex items-center gap-2 bg-white border border-stance-mint/8 rounded-2xl px-4 py-2.5 shadow-sm">
+    <div className="inline-flex items-center gap-2 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm">
       <div className="flex gap-1">
         {[0,1,2].map(i => (
-          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-mint/25 animate-bounce"
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-stance-steel/25 animate-bounce"
             style={{ animationDelay: `${i*150}ms`, animationDuration: '0.9s' }} />
         ))}
       </div>
-      <span className="text-[12px] text-stance-mint/40 font-medium">Sage is thinking</span>
+      <span className="text-[12px] text-stance-steel/40 font-medium">Sage is thinking</span>
     </div>
   );
 }
@@ -995,10 +995,10 @@ export default function TranscriptionInterface({
   }, [messages]);
 
   return (
-    <div className="h-[100dvh] bg-stance-mint flex flex-col overflow-hidden overflow-x-hidden text-white" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+    <div className="h-[100dvh] bg-stance-steel flex flex-col overflow-hidden overflow-x-hidden text-white" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
 
       {/* ── Header ── */}
-      <header className="bg-stance-mint/80 backdrop-blur-md z-10">
+      <header className="bg-stance-steel/80 backdrop-blur-md z-10">
         <div className="max-w-5xl mx-auto px-5 py-3 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1030,7 +1030,7 @@ export default function TranscriptionInterface({
 
               <Badge
                 variant="outline"
-                className="rounded-sm border-0 text-stance-mint bg-stance-neon font-display text-[8px] uppercase tracking-widest px-2 py-0.5 font-bold"
+                className="rounded-sm border-0 text-stance-steel bg-stance-neon font-display text-[8px] uppercase tracking-widest px-2 py-0.5 font-bold"
               >
                 Live
               </Badge>
@@ -1085,16 +1085,16 @@ export default function TranscriptionInterface({
               <div className="flex flex-col items-center text-center gap-8 pt-16 pb-8 min-h-[60vh] justify-center">
 
                 {/* Big mic icon — like the original */}
-                <div className="h-24 w-24 rounded-[28px] bg-stance-mint flex items-center justify-center shadow-[0_8px_32px_rgba(14,27,42,0.18)]">
+                <div className="h-24 w-24 rounded-[28px] bg-stance-steel flex items-center justify-center shadow-[0_8px_32px_rgba(14,27,42,0.18)]">
                   <Mic className="h-10 w-10 text-stance-neon" />
                 </div>
 
                 {/* Headline */}
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-stance-mint/40">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-stance-steel/40">
                     Stance Health · Live Interview
                   </p>
-                  <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-stance-mint">
+                  <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-stance-steel">
                     {(messages.length > 0 || (interviewState && interviewState.progress > 5))
                       ? "Resume your session"
                       : "Ready to begin?"}
@@ -1108,28 +1108,28 @@ export default function TranscriptionInterface({
 
 
                 {/* Voice vs Text — info cards only, not buttons */}
-                <div className="flex gap-3 w-full max-w-xs">
+                <div className="flex gap-2.5 w-full max-w-xs">
                   {/* Voice card — solid dark background for contrast */}
-                  <div className="flex-1 rounded-2xl bg-stance-mint px-4 py-3.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Mic size={12} className="text-stance-neon" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-neon">Voice</span>
+                  <div className="flex-1 rounded-xl bg-stance-steel px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Mic size={11} className="text-stance-neon" />
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-stance-neon">Voice</span>
                     </div>
-                    <p className="text-[22px] font-display font-bold text-white leading-none">~3 min</p>
-                    <p className="text-[11px] text-white/50 mt-1">Speak naturally</p>
+                    <p className="text-[17px] font-display font-bold text-white leading-none">~3 min</p>
+                    <p className="text-[10px] text-white/50 mt-0.5">Speak naturally</p>
                   </div>
                   {/* Text card — muted */}
-                  <div className="flex-1 rounded-2xl bg-white border border-stance-mint/10 px-4 py-3.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Send size={11} className="text-stance-mint/40" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stance-mint/40">Text</span>
+                  <div className="flex-1 rounded-xl bg-white border border-stance-steel/10 px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Send size={10} className="text-stance-steel/40" />
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-stance-steel/40">Text</span>
                     </div>
-                    <p className="text-[22px] font-display font-bold text-stance-mint/30 leading-none">6–10 min</p>
-                    <p className="text-[11px] text-stance-mint/30 mt-1">Type your answers</p>
+                    <p className="text-[17px] font-display font-bold text-stance-steel/30 leading-none">6–10 min</p>
+                    <p className="text-[10px] text-stance-steel/30 mt-0.5">Type your answers</p>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-stance-mint/35 italic">
+                <p className="text-[11px] text-stance-steel/35 italic">
                   Tip: Voice is much faster — just speak naturally.
                 </p>
 
@@ -1137,7 +1137,7 @@ export default function TranscriptionInterface({
                 {consentAccepted === false && (
                   <button
                     onClick={() => window.open(`https://consent.stance.health/${userId}`, "_blank", "noopener")}
-                    className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-mint font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
+                    className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
                   >
                     <ShieldCheck size={16} />
                     Accept Consent to Continue
@@ -1151,10 +1151,10 @@ export default function TranscriptionInterface({
                   className={cn(
                     "w-full max-w-xs flex items-center justify-center gap-2 font-semibold text-[15px] rounded-2xl py-4 px-6 transition-all",
                     consentAccepted === false
-                      ? "bg-stance-mint/30 text-white/30 cursor-not-allowed"
+                      ? "bg-stance-steel/30 text-white/30 cursor-not-allowed"
                       : consentAccepted === null
-                      ? "bg-stance-mint/50 text-white/50 cursor-wait"
-                      : "bg-stance-mint text-white hover:bg-stance-mint/90 active:scale-[0.98] shadow-[0_4px_24px_rgba(14,27,42,0.2)]"
+                      ? "bg-stance-steel/50 text-white/50 cursor-wait"
+                      : "bg-stance-steel text-white hover:bg-stance-steel/90 active:scale-[0.98] shadow-[0_4px_24px_rgba(14,27,42,0.2)]"
                   )}
                 >
                   Get Started
@@ -1177,7 +1177,7 @@ export default function TranscriptionInterface({
                     <div className={cn(
                       "max-w-[85%] rounded-2xl p-5 md:p-6 shadow-sm transition-all duration-300",
                       isAssistant
-                        ? "bg-stance-mint text-white rounded-tl-none border border-white/5"
+                        ? "bg-stance-steel text-white rounded-tl-none border border-white/5"
                         : "bg-white text-stance-grey rounded-tr-none border border-stance-neon/50 shadow-sm"
                     )}>
                       {isAssistant
@@ -1224,7 +1224,7 @@ export default function TranscriptionInterface({
                         <Button
                           onClick={() => document.getElementById("file-upload-inline")?.click()}
                           size="sm"
-                          className="bg-stance-neon text-stance-mint hover:bg-stance-neon/90 font-bold text-xs px-4 h-9 rounded-xl gap-2"
+                          className="bg-stance-neon text-stance-steel hover:bg-stance-neon/90 font-bold text-xs px-4 h-9 rounded-xl gap-2"
                         >
                           <Paperclip className="h-3.5 w-3.5" />
                           Upload Documents
@@ -1263,7 +1263,7 @@ export default function TranscriptionInterface({
             {/* Live streaming bubble — shows words appearing as LLM generates them */}
             {streamingToken && (
               <div className="flex justify-start">
-                <div className="max-w-[75%] rounded-[18px] px-5 py-3 bg-stance-mint text-white text-sm leading-relaxed shadow-sm">
+                <div className="max-w-[75%] rounded-[18px] px-5 py-3 bg-stance-steel text-white text-sm leading-relaxed shadow-sm">
                   {streamingToken}
                   <span className="inline-block w-1.5 h-3.5 bg-stance-neon ml-1 animate-pulse rounded-sm align-middle" />
                 </div>
@@ -1294,7 +1294,7 @@ export default function TranscriptionInterface({
 
       {/* Persistent Controls — shown after Get Started is clicked */}
       {inputMode !== null && (
-        <div className="bg-[#F0F3F8] border-t border-stance-mint/10 px-6 py-4 z-20" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
@@ -1307,10 +1307,10 @@ export default function TranscriptionInterface({
                   onKeyDown={handleTextareaKeyDown}
                   placeholder={isProcessingVoice ? "Transcribing your voice..." : "Speak or type your response..."}
                   className={cn(
-                    "min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border shadow-sm focus-visible:ring-stance-mint/10 resize-none text-base text-stance-grey placeholder:italic leading-snug",
+                    "min-h-[52px] max-h-[120px] pr-14 py-3.5 rounded-2xl bg-white border shadow-sm focus-visible:ring-stance-steel/10 resize-none text-base text-stance-grey placeholder:italic leading-snug",
                     isProcessingVoice
                       ? "border-stance-neon/40 placeholder:text-stance-neon/50 cursor-not-allowed opacity-70"
-                      : "border-stance-mint/10 placeholder:text-stance-grey/30"
+                      : "border-stance-steel/10 placeholder:text-stance-grey/30"
                   )}
                   disabled={isModelSpeaking || isProcessingVoice}
                 />
@@ -1318,7 +1318,7 @@ export default function TranscriptionInterface({
                   <Button
                     onClick={handleSendMessage}
                     size="icon"
-                    className="absolute right-3 bottom-3 h-8 w-8 rounded-xl bg-stance-mint text-white hover:bg-stance-grey transition-all shadow-md"
+                    className="absolute right-3 bottom-3 h-8 w-8 rounded-xl bg-stance-steel text-white hover:bg-stance-grey transition-all shadow-md"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
@@ -1332,7 +1332,7 @@ export default function TranscriptionInterface({
                   "rounded-full w-14 h-14 flex-shrink-0 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95",
                   isRecording
                     ? "bg-red-500 hover:bg-red-600 shadow-red-500/30"
-                    : "bg-stance-mint hover:bg-stance-mint/90 shadow-stance-mint/30 ring-2 ring-stance-neon ring-offset-2 ring-offset-[#F0F3F8]"
+                    : "bg-stance-steel hover:bg-stance-steel/90 shadow-stance-steel/30 ring-2 ring-stance-neon ring-offset-2 ring-offset-[#F0F3F8]"
                 )}
               >
                 {isRecording ? (
