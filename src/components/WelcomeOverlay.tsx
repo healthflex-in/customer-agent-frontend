@@ -23,7 +23,7 @@ export default function WelcomeOverlay({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-stance-steel/95 backdrop-blur-md transition-opacity duration-300",
+        "fixed inset-0 z-50 flex items-center justify-center bg-stance-mint/95 backdrop-blur-md transition-opacity duration-300",
         acknowledged ? "opacity-0 pointer-events-none" : "opacity-100"
       )}
     >
@@ -88,7 +88,7 @@ export default function WelcomeOverlay({
         {/* CTA */}
         <button
           onClick={handleProceed}
-          className="w-full flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-4 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all duration-150 shadow-[0_4px_24px_rgba(221,254,113,0.25)]"
+          className="w-full flex items-center justify-center gap-2 bg-stance-neon text-stance-mint font-semibold text-[14px] rounded-2xl py-4 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all duration-150 shadow-[0_4px_24px_rgba(221,254,113,0.25)]"
         >
           Got it, let's start
           <ChevronRight size={16} strokeWidth={2.5} />

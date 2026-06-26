@@ -37,7 +37,7 @@ export default function Index() {
   // No userId in URL — show a simple access-denied message
   if (!ready) {
     return (
-      <div className="min-h-screen bg-stance-steel flex items-center justify-center px-6">
+      <div className="min-h-screen bg-stance-mint flex items-center justify-center px-6">
         <div className="text-center space-y-4 max-w-sm">
           <img
             src="/assets/brand/logo-white.png"
