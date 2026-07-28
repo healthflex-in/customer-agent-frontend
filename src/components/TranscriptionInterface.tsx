@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Mic, Save, Trash2, Send, Square, Paperclip, ShieldCheck } from "lucide-react";
-import { getApiUrl } from "@/config/api";
+import { getApiUrl, getWsUrl } from "@/config/api";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -15,13 +15,35 @@ import { Badge } from "@/components/ui/badge";
 import { UnderstandingCard } from "@/components/cards/UnderstandingCard";
 import { AgentThoughtStream } from "@/components/cards/AgentThoughtStream";
 import type { ThoughtStage } from "@/components/cards/AgentThoughtStream";
-import { getApiUrl, getWsUrl } from "@/config/api";
 import SegmentedProgress from "@/components/voice/SegmentedProgress";
+
+interface QuestionMeta {
+  type:
+    | "single_choice" | "multiple_choice" | "checkbox"
+    | "scale" | "linear_scale" | "slider"
+    | "rating"
+    | "text" | "short_answer" | "paragraph"
+    | "number"
+    | "boolean" | "yes_no"
+    | "dropdown"
+    | "date" | "time"
+    | "likert"
+    | "choice_grid" | "checkbox_grid"
+    | "file_upload"
+    | "multi_answer";
+  options?: string[] | null;
+  question_id?: string | null;
+  question_ids?: string[] | null;
+  questions?: string[] | null;
+  question_options?: (string[] | null)[] | null;
+  question_types?: string[] | null;
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  questionMeta?: QuestionMeta;
 }
 
 interface Attachment {
@@ -34,13 +56,12 @@ interface Attachment {
 
 interface InterviewState {
   section: string;
-  current_section?: string; // optional: backend may send current_section
+  current_section?: string;
   progress: number;
   missing_fields: string[];
   attachments?: Attachment[];
   formId?: string;
-   // Optional backend-driven per-section progress metadata
-  // (shape is intentionally loose to stay compatible with API changes)
+  promSteps?: string[] | null;   // PROM scale names — replaces hardcoded FRM-01 steps
   sectionProgress?: {
     progress?: number;
     steps?: Array<{
@@ -116,8 +137,470 @@ function _ThinkingDots() {
   );
 }
 
-export default function TranscriptionInterface({ 
-  userId = "", 
+// ── Shared button style ────────────────────────────────────────────────────
+const _BTN_BASE = "px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] self-start mt-2";
+const _INPUT_BASE = "w-full bg-white/10 border border-white/20 rounded-xl text-white text-sm px-4 py-3 placeholder:text-white/30 focus:outline-none focus:border-stance-neon";
+
+function _ShortAnswerInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <input
+        type="text"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && val.trim() && onAnswer(val.trim())}
+        placeholder="Type your answer…"
+        className={_INPUT_BASE}
+        autoFocus
+      />
+      {val.trim() && <button onClick={() => onAnswer(val.trim())} className={_BTN_BASE}>Submit</button>}
+    </div>
+  );
+}
+
+function _ParagraphInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <textarea
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        placeholder="Type your answer…"
+        rows={3}
+        className={`${_INPUT_BASE} resize-none`}
+        autoFocus
+      />
+      {val.trim() && <button onClick={() => onAnswer(val.trim())} className={_BTN_BASE}>Submit</button>}
+    </div>
+  );
+}
+
+function _DropdownSelect({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <select
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        className="w-full bg-stance-steel border border-white/20 rounded-xl text-white text-sm px-4 py-3 focus:outline-none focus:border-stance-neon appearance-none"
+      >
+        <option value="" disabled>Select an option…</option>
+        {options.map((o, i) => <option key={i} value={o}>{o}</option>)}
+      </select>
+      {val && <button onClick={() => onAnswer(val)} className={_BTN_BASE}>Submit</button>}
+    </div>
+  );
+}
+
+function _DateInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <input
+        type="date"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        className={`${_INPUT_BASE} [color-scheme:dark]`}
+      />
+      {val && <button onClick={() => onAnswer(val)} className={_BTN_BASE}>Submit</button>}
+    </div>
+  );
+}
+
+function _TimeInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <input
+        type="time"
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        className={`${_INPUT_BASE} [color-scheme:dark]`}
+      />
+      {val && <button onClick={() => onAnswer(val)} className={_BTN_BASE}>Submit</button>}
+    </div>
+  );
+}
+
+function _LikertScale({ onAnswer, options }: { onAnswer: (v: string) => void; options?: string[] | null }) {
+  const labels = options?.length === 5
+    ? options
+    : ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"];
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <div className="grid grid-cols-5 gap-1">
+        {labels.map((lbl, i) => (
+          <button
+            key={i}
+            onClick={() => onAnswer(lbl)}
+            className="flex flex-col items-center gap-1 px-1 py-3 rounded-xl bg-white/10 border border-white/20 hover:bg-stance-neon/20 hover:border-stance-neon text-white text-center transition-all active:scale-95"
+          >
+            <span className="text-lg font-bold">{i + 1}</span>
+            <span className="text-[9px] leading-tight opacity-60">{lbl}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// options format: ["Row 1", "Row 2", "|", "Col A", "Col B"]  ("|" separates rows from cols)
+// If no "|" found, falls back to single-choice layout
+function _ChoiceGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
+  const pivotIdx = options.indexOf("|");
+  if (pivotIdx < 0) {
+    // No grid structure — render as horizontal single-choice
+    return (
+      <div className="mt-4 flex flex-wrap gap-2">
+        {options.map((o, i) => (
+          <button key={i} onClick={() => onAnswer(o)}
+            className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 hover:bg-stance-neon/20 hover:border-stance-neon text-white text-sm font-medium transition-all active:scale-95"
+          >{o}</button>
+        ))}
+      </div>
+    );
+  }
+  const rows = options.slice(0, pivotIdx);
+  const cols = options.slice(pivotIdx + 1);
+  const [selections, setSelections] = useState<Record<string, string>>({});
+  const set = (row: string, col: string) => setSelections(prev => ({ ...prev, [row]: col }));
+  const allDone = rows.every(r => selections[r]);
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-left pb-2 text-white/40 font-normal text-xs"></th>
+              {cols.map((c, i) => <th key={i} className="pb-2 text-center text-white/60 font-medium text-xs px-2">{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={ri} className={ri % 2 === 0 ? "bg-white/5" : ""}>
+                <td className="py-2 pr-3 text-white/80 text-xs">{row}</td>
+                {cols.map((col, ci) => (
+                  <td key={ci} className="py-2 text-center">
+                    <button
+                      onClick={() => set(row, col)}
+                      className={cn("w-5 h-5 rounded-full border-2 transition-all mx-auto block",
+                        selections[row] === col ? "bg-stance-neon border-stance-neon" : "border-white/30 hover:border-stance-neon/60")}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {allDone && (
+        <button onClick={() => onAnswer(rows.map(r => `${r}: ${selections[r]}`).join(", "))} className={_BTN_BASE}>
+          Submit
+        </button>
+      )}
+    </div>
+  );
+}
+
+function _CheckboxGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
+  const pivotIdx = options.indexOf("|");
+  const rows = pivotIdx >= 0 ? options.slice(0, pivotIdx) : ["Response"];
+  const cols = pivotIdx >= 0 ? options.slice(pivotIdx + 1) : options;
+  const [selections, setSelections] = useState<Record<string, string[]>>({});
+  const toggle = (row: string, col: string) =>
+    setSelections(prev => {
+      const cur = prev[row] || [];
+      return { ...prev, [row]: cur.includes(col) ? cur.filter(c => c !== col) : [...cur, col] };
+    });
+  const hasAny = Object.values(selections).some(v => v.length > 0);
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-left pb-2 text-white/40 font-normal text-xs"></th>
+              {cols.map((c, i) => <th key={i} className="pb-2 text-center text-white/60 font-medium text-xs px-2">{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={ri} className={ri % 2 === 0 ? "bg-white/5" : ""}>
+                <td className="py-2 pr-3 text-white/80 text-xs">{row}</td>
+                {cols.map((col, ci) => (
+                  <td key={ci} className="py-2 text-center">
+                    <button
+                      onClick={() => toggle(row, col)}
+                      className={cn("w-5 h-5 rounded border-2 transition-all mx-auto block",
+                        (selections[row] || []).includes(col) ? "bg-stance-neon border-stance-neon" : "border-white/30 hover:border-stance-neon/60")}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hasAny && (
+        <button onClick={() => onAnswer(
+          rows.filter(r => (selections[r] || []).length > 0).map(r => `${r}: ${(selections[r] || []).join(", ")}`).join("; ")
+        )} className={_BTN_BASE}>Submit</button>
+      )}
+    </div>
+  );
+}
+
+function _FileUploadInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+  const [fileName, setFileName] = useState("");
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <label className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 border border-white/20 hover:bg-white/15 border-dashed cursor-pointer transition-all">
+        <svg className="w-5 h-5 text-white/50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        <span className="text-white/60 text-sm">{fileName || "Tap to upload file"}</span>
+        <input type="file" className="hidden" onChange={e => {
+          const f = e.target.files?.[0];
+          if (f) { setFileName(f.name); onAnswer(f.name); }
+        }} />
+      </label>
+    </div>
+  );
+}
+
+function _CheckboxQuestion({ options, onAnswer }: { options: string[]; onAnswer: (answer: string) => void }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggle = (opt: string) => setSelected(prev => prev.includes(opt) ? prev.filter(o => o !== opt) : [...prev, opt]);
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      {options.map((opt, i) => (
+        <button
+          key={i}
+          onClick={() => toggle(opt)}
+          className={cn(
+            "text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all",
+            selected.includes(opt)
+              ? "bg-stance-neon/25 border-stance-neon text-white"
+              : "bg-white/10 border-white/20 text-white hover:bg-white/15"
+          )}
+        >
+          <span className={cn("inline-block w-4 h-4 rounded border mr-2 align-middle transition-colors",
+            selected.includes(opt) ? "bg-stance-neon border-stance-neon" : "border-white/40")} />
+          {opt}
+        </button>
+      ))}
+      {selected.length > 0 && (
+        <button
+          onClick={() => onAnswer(selected.join(", "))}
+          className="mt-1 px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98]"
+        >
+          Confirm ({selected.length} selected)
+        </button>
+      )}
+    </div>
+  );
+}
+
+function _NumberStepper({ onAnswer, min = 0, max = 100 }: { onAnswer: (v: string) => void; min?: number; max?: number }) {
+  const [value, setValue] = useState<number>(min);
+  const dec = () => setValue(v => Math.max(min, v - 1));
+  const inc = () => setValue(v => Math.min(max, v + 1));
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <button onClick={dec} className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 text-white text-xl font-bold transition-all active:scale-95">−</button>
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          onChange={e => {
+            const n = parseInt(e.target.value, 10);
+            if (!isNaN(n)) setValue(Math.min(max, Math.max(min, n)));
+          }}
+          className="w-20 text-center bg-white/10 border border-white/20 rounded-xl text-white text-xl font-bold py-2 focus:outline-none focus:border-stance-neon"
+        />
+        <button onClick={inc} className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 text-white text-xl font-bold transition-all active:scale-95">+</button>
+      </div>
+      <button
+        onClick={() => onAnswer(String(value))}
+        className="px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] self-start"
+      >
+        Confirm
+      </button>
+    </div>
+  );
+}
+
+function _RatingStars({ onAnswer }: { onAnswer: (v: string) => void }) {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(0);
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map(star => (
+          <button
+            key={star}
+            onMouseEnter={() => setHovered(star)}
+            onMouseLeave={() => setHovered(0)}
+            onClick={() => setSelected(star)}
+            className="text-3xl transition-transform hover:scale-110 active:scale-95"
+          >
+            <span className={(hovered || selected) >= star ? "text-stance-neon" : "text-white/20"}>★</span>
+          </button>
+        ))}
+      </div>
+      {selected > 0 && (
+        <button
+          onClick={() => onAnswer(String(selected))}
+          className="px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] self-start"
+        >
+          Confirm ({selected}/5)
+        </button>
+      )}
+    </div>
+  );
+}
+
+function _SliderInput({ onAnswer, min = 0, max = 10, options }: { onAnswer: (v: string) => void; min?: number; max?: number; options?: string[] | null }) {
+  const [value, setValue] = useState(Math.round((min + max) / 2));
+  const minLabel = options?.[0] ?? String(min);
+  const maxLabel = options?.[1] ?? String(max);
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <span className="text-[11px] text-white/50 min-w-[60px]">{minLabel}</span>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={e => setValue(parseInt(e.target.value, 10))}
+          className="flex-1 accent-stance-neon"
+        />
+        <span className="text-[11px] text-white/50 min-w-[60px] text-right">{maxLabel}</span>
+      </div>
+      <div className="text-center text-2xl font-bold text-stance-neon">{value}</div>
+      <button
+        onClick={() => onAnswer(String(value))}
+        className="px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] self-start"
+      >
+        Confirm
+      </button>
+    </div>
+  );
+}
+
+function _MultiAnswerInput({
+  questions,
+  questionOptions,
+  questionTypes,
+  onAnswer,
+}: {
+  questions: string[];
+  questionOptions?: (string[] | null)[] | null;
+  questionTypes?: string[] | null;
+  onAnswer: (v: string) => void;
+}) {
+  const [answers, setAnswers] = useState<string[]>(new Array(questions.length).fill(""));
+  const allAnswered = answers.every(a => a !== "");
+
+  const setAnswer = (i: number, val: string) =>
+    setAnswers(prev => { const n = [...prev]; n[i] = val; return n; });
+
+  const renderControl = (i: number) => {
+    const qType = questionTypes?.[i] ?? "text";
+    const opts = questionOptions?.[i];
+
+    // 0–10 scale (NPS)
+    if (qType === "scale" || qType === "linear_scale") {
+      return (
+        <div className="flex gap-1 flex-wrap">
+          {Array.from({ length: 11 }, (_, n) => (
+            <button key={n} onClick={() => setAnswer(i, String(n))}
+              className={cn("w-9 h-9 rounded-lg text-sm font-bold transition-all border",
+                answers[i] === String(n)
+                  ? "bg-stance-neon text-stance-steel border-stance-neon"
+                  : n <= 3 ? "bg-green-500/20 border-green-400/40 hover:bg-green-500/40 text-white"
+                  : n <= 6 ? "bg-yellow-500/20 border-yellow-400/40 hover:bg-yellow-500/40 text-white"
+                  : "bg-red-500/20 border-red-400/40 hover:bg-red-500/40 text-white"
+              )}>
+              {n}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // Boolean / yes-no
+    if (qType === "boolean" || qType === "yes_no") {
+      const bOpts = opts?.length ? opts : ["Yes", "No"];
+      return (
+        <div className="flex gap-2">
+          {bOpts.map(opt => (
+            <button key={opt} onClick={() => setAnswer(i, opt)}
+              className={cn("flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-all border",
+                answers[i] === opt
+                  ? "bg-stance-neon text-stance-steel border-stance-neon"
+                  : "bg-white/10 text-white border-white/20 hover:border-stance-neon/60"
+              )}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // Single choice MCQ
+    if ((qType === "single_choice" || qType === "dropdown") && opts?.length) {
+      return (
+        <div className="flex flex-col gap-1.5">
+          {opts.map(opt => (
+            <button key={opt} onClick={() => setAnswer(i, opt)}
+              className={cn("text-left px-3 py-2 rounded-lg text-sm transition-all border",
+                answers[i] === opt
+                  ? "bg-stance-neon text-stance-steel border-stance-neon font-bold"
+                  : "bg-white/10 text-white border-white/20 hover:border-stance-neon/60"
+              )}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // Text fallback
+    return (
+      <input type="text" value={answers[i]}
+        onChange={e => setAnswer(i, e.target.value)}
+        placeholder="Type your answer…"
+        className={_INPUT_BASE}
+      />
+    );
+  };
+
+  return (
+    <div className="mt-4 flex flex-col gap-5">
+      {questions.map((q, i) => (
+        <div key={i} className="flex flex-col gap-2">
+          <p className="text-xs text-white/70 leading-relaxed">{q}</p>
+          {renderControl(i)}
+        </div>
+      ))}
+      <button
+        disabled={!allAnswered}
+        onClick={() => onAnswer(answers.join("|"))}
+        className="px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed self-start"
+      >
+        Submit All Answers
+      </button>
+    </div>
+  );
+}
+
+export default function TranscriptionInterface({
+  userId = "",
   userName = "",
   initialFormId = null
 }: TranscriptionInterfaceProps = {}) {
@@ -174,6 +657,11 @@ export default function TranscriptionInterface({
   // ── Consent check ────────────────────────────────────────────────────────────
   const checkConsent = useCallback(() => {
     if (!userId) return;
+    // Dev bypass — treat consent as already accepted so the gate doesn't block testing.
+    if (import.meta.env.DEV) {
+      setConsentAccepted(true);
+      return;
+    }
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => setConsentAccepted(!!data.consentAccepted))
@@ -233,7 +721,7 @@ export default function TranscriptionInterface({
   }, []);
 
   // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean) => {
+  const handleWebSocketMessage = useCallback((message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean, questionMeta?: QuestionMeta) => {
     // Clear the pending transcription ref when new AI message arrives
     pendingTranscriptionRef.current = null;
 
@@ -247,6 +735,7 @@ export default function TranscriptionInterface({
         role: "assistant",
         content: message.trim(),
         timestamp: new Date(),
+        questionMeta: questionMeta || undefined,
       };
       setMessages((prev) => [...prev, aiMessage]);
       setIsUnderstanding(false);
@@ -426,9 +915,9 @@ export default function TranscriptionInterface({
 
   // When the full text_message arrives, clear the streaming buffer (already added to messages)
   const handleWebSocketMessageWithTokenClear = useCallback(
-    (message: string, transcription?: string, interviewState?: any, requestAttachment?: boolean) => {
+    (message: string, transcription?: string, interviewState?: any, requestAttachment?: boolean, questionMeta?: QuestionMeta) => {
       setStreamingToken("");   // clear accumulated tokens — final message is now in messages[]
-      handleWebSocketMessage(message, transcription, interviewState, requestAttachment);
+      handleWebSocketMessage(message, transcription, interviewState, requestAttachment, questionMeta);
     },
     [handleWebSocketMessage]
   );
@@ -854,6 +1343,138 @@ export default function TranscriptionInterface({
     });
   };
 
+  // Render an interactive question UI based on question type
+  const renderQuestionInput = (meta: QuestionMeta, onAnswer: (answer: string) => void) => {
+    const { type, options } = meta;
+
+    // ── multi_answer: grouped questions with per-question options/types ─────────
+    if (type === "multi_answer" && meta.questions?.length) {
+      return (
+        <_MultiAnswerInput
+          questions={meta.questions}
+          questionOptions={meta.question_options ?? []}
+          questionTypes={meta.question_types ?? []}
+          onAnswer={onAnswer}
+        />
+      );
+    }
+
+    // ── boolean / yes_no → 2-option single choice ────────────────────────────
+    if (type === "boolean" || type === "yes_no") {
+      const opts = options?.length ? options : ["Yes", "No"];
+      return (
+        <div className="mt-4 flex gap-2">
+          {opts.map((opt, i) => (
+            <button key={i} onClick={() => onAnswer(opt)}
+              className="flex-1 px-4 py-3 rounded-xl bg-white/10 hover:bg-stance-neon/20 border border-white/20 hover:border-stance-neon text-white text-sm font-bold transition-all active:scale-[0.98]">
+              {opt}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ── single choice ─────────────────────────────────────────────────────────
+    if (type === "single_choice" && options?.length) {
+      return (
+        <div className="mt-4 flex flex-col gap-2">
+          {options.map((opt, i) => (
+            <button key={i} onClick={() => onAnswer(opt)}
+              className="text-left px-4 py-3 rounded-xl bg-white/10 hover:bg-stance-neon/20 border border-white/20 hover:border-stance-neon text-white text-sm font-medium transition-all active:scale-[0.98]">
+              {opt}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ── multiple choice / checkbox ────────────────────────────────────────────
+    if (type === "multiple_choice" || type === "checkbox") {
+      return <_CheckboxQuestion options={options || []} onAnswer={onAnswer} />;
+    }
+
+    // ── dropdown ─────────────────────────────────────────────────────────────
+    if (type === "dropdown") {
+      return <_DropdownSelect options={options || []} onAnswer={onAnswer} />;
+    }
+
+    // ── scale / linear_scale (0–10 buttons) ─────────────────────────────────
+    if (type === "scale" || type === "linear_scale") {
+      const minLabel = options?.[0] ?? null;
+      const maxLabel = options?.[1] ?? null;
+      return (
+        <div className="mt-4">
+          <div className="flex gap-1 flex-wrap">
+            {Array.from({ length: 11 }, (_, i) => (
+              <button key={i} onClick={() => onAnswer(String(i))}
+                className={cn("w-10 h-10 rounded-lg text-sm font-bold transition-all active:scale-95 border",
+                  i <= 3 ? "bg-green-500/20 border-green-400/40 hover:bg-green-500/40 text-white"
+                    : i <= 6 ? "bg-yellow-500/20 border-yellow-400/40 hover:bg-yellow-500/40 text-white"
+                    : "bg-red-500/20 border-red-400/40 hover:bg-red-500/40 text-white"
+                )}>
+                {i}
+              </button>
+            ))}
+          </div>
+          {(minLabel || maxLabel) && (
+            <div className="flex justify-between mt-1 text-[10px] text-white/50">
+              <span>{minLabel ?? "0"}</span><span>{maxLabel ?? "10"}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── rating (stars) ────────────────────────────────────────────────────────
+    if (type === "rating") {
+      return <_RatingStars onAnswer={onAnswer} />;
+    }
+
+    // ── likert scale ──────────────────────────────────────────────────────────
+    if (type === "likert") {
+      return <_LikertScale onAnswer={onAnswer} options={options} />;
+    }
+
+    // ── slider ────────────────────────────────────────────────────────────────
+    if (type === "slider") {
+      return <_SliderInput onAnswer={onAnswer} options={options} />;
+    }
+
+    // ── number stepper ────────────────────────────────────────────────────────
+    if (type === "number") {
+      return <_NumberStepper onAnswer={onAnswer} />;
+    }
+
+    // ── short answer (inline input) ───────────────────────────────────────────
+    if (type === "short_answer") {
+      return <_ShortAnswerInput onAnswer={onAnswer} />;
+    }
+
+    // ── paragraph (multiline) ─────────────────────────────────────────────────
+    if (type === "paragraph") {
+      return <_ParagraphInput onAnswer={onAnswer} />;
+    }
+
+    // ── date / time ───────────────────────────────────────────────────────────
+    if (type === "date") return <_DateInput onAnswer={onAnswer} />;
+    if (type === "time") return <_TimeInput onAnswer={onAnswer} />;
+
+    // ── grid types ────────────────────────────────────────────────────────────
+    if (type === "choice_grid") {
+      return <_ChoiceGrid options={options || []} onAnswer={onAnswer} />;
+    }
+    if (type === "checkbox_grid") {
+      return <_CheckboxGrid options={options || []} onAnswer={onAnswer} />;
+    }
+
+    // ── file upload ───────────────────────────────────────────────────────────
+    if (type === "file_upload") {
+      return <_FileUploadInput onAnswer={onAnswer} />;
+    }
+
+    return null; // text / paragraph → user types in chat input normally
+  };
+
   // Format message content to render bullet points as proper lists
   const formatMessageContent = (content: string) => {
     const lines = content.split('\n');
@@ -922,7 +1543,7 @@ export default function TranscriptionInterface({
     return <div>{elements}</div>;
   };
 
-  const interviewSteps = useMemo(
+  const _frmSteps = useMemo(
     () => [
       "Present Complaint",
       "Previous Consultations",
@@ -934,20 +1555,32 @@ export default function TranscriptionInterface({
     []
   );
 
+  // Use PROM scale names from backend when available; fall back to FRM-01 steps
+  const interviewSteps = useMemo(
+    () => (interviewState?.promSteps?.length ? interviewState.promSteps : _frmSteps),
+    [interviewState?.promSteps, _frmSteps]
+  );
+
   const derivedCurrentStep = useMemo(() => {
     if (!interviewState) return 1;
     const totalSteps = interviewSteps.length;
+    const normalizedProgress = Math.min(Math.max(interviewState.progress, 0), 100);
 
-    // If backend reports interview as fully complete, always show final step
-    const normalizedProgress = Math.min(
-      Math.max(interviewState.progress, 0),
-      100
-    );
-    if (normalizedProgress >= 100) {
-      return totalSteps;
-    }
+    if (normalizedProgress >= 100) return totalSteps;
 
     const currentSectionName = interviewState.current_section || interviewState.section;
+
+    // For PROM: match directly against prom step names
+    if (interviewState.promSteps?.length) {
+      const idx = interviewSteps.findIndex(
+        s => s.toLowerCase() === (currentSectionName || "").toLowerCase()
+      );
+      if (idx >= 0) return idx + 1;
+      // Fallback: progress-based
+      return Math.min(Math.max(Math.ceil((normalizedProgress / 100) * totalSteps) || 1, 1), totalSteps);
+    }
+
+    // FRM-01: use section aliases
     const sectionAliases: Record<string, string> = {
       "present complaint": "Present Complaint",
       "previous consultations": "Previous Consultations",
@@ -959,23 +1592,13 @@ export default function TranscriptionInterface({
       "lifestyle factors": "History & Diagnostics",
       "diagnostic reports": "History & Diagnostics",
     };
-    const normalizedSectionName = currentSectionName
+    const normalized = currentSectionName
       ? sectionAliases[currentSectionName.toLowerCase()] || currentSectionName
       : "";
-    
-    // Prioritize section-based detection as it's more accurate
-    const sectionIndex = normalizedSectionName
-      ? interviewSteps.findIndex(
-          (step) => step.toLowerCase() === normalizedSectionName.toLowerCase()
-        )
+    const sectionIndex = normalized
+      ? interviewSteps.findIndex(s => s.toLowerCase() === normalized.toLowerCase())
       : -1;
-    
-    if (sectionIndex >= 0) {
-      // If we found a matching section, use it (add 1 because index is 0-based)
-      return sectionIndex + 1;
-    }
-
-    // Fallback to progress-based calculation if section name doesn't match
+    if (sectionIndex >= 0) return sectionIndex + 1;
     const progressStep = Math.ceil((normalizedProgress / 100) * totalSteps) || 1;
     return Math.min(Math.max(progressStep, 1), totalSteps);
   }, [interviewState, interviewSteps]);
@@ -1181,7 +1804,15 @@ export default function TranscriptionInterface({
                         : "bg-white text-stance-grey rounded-tr-none border border-stance-neon/50 shadow-sm"
                     )}>
                       {isAssistant
-                        ? formatMessageContent(message.content)
+                        ? <>
+                            {formatMessageContent(message.content)}
+                            {isLastAssistant && message.questionMeta && renderQuestionInput(
+                              message.questionMeta,
+                              (answer) => {
+                                if (sendTranscriptRef.current) sendTranscriptRef.current(answer);
+                              }
+                            )}
+                          </>
                         : <p className="text-sm leading-relaxed">{message.content}</p>}
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-stance-grey/40 px-1">
