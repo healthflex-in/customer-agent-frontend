@@ -19,6 +19,11 @@ export default function ConsentPage() {
       setErrorMsg("Invalid link — no user ID provided.");
       return;
     }
+    // Dev: skip the API check and show the consent form immediately.
+    if (import.meta.env.DEV) {
+      setStatus("required");
+      return;
+    }
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => {
@@ -43,6 +48,13 @@ export default function ConsentPage() {
 
   const handleAccept = async () => {
     if (!checked || !userId) return;
+
+    // Dev bypass — skip the consent API call and go straight to the interview.
+    if (import.meta.env.DEV) {
+      navigate(`/${userId}/FRM-01`, { replace: true });
+      return;
+    }
+
     setAccepting(true);
     try {
       const res = await fetch(getApiUrl(`/api/users/${userId}/consent`), {

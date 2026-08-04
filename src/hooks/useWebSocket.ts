@@ -13,6 +13,7 @@ interface InterviewState {
     uploadedAt: string;
   }>;
   formId?: string;
+  promSteps?: string[] | null;
 }
 
 interface ChatHistoryMessage {
@@ -27,12 +28,36 @@ interface ThoughtStage {
   status: "done" | "active" | "pending";
 }
 
+export interface QuestionMeta {
+  type:
+    | "single_choice" | "multiple_choice" | "checkbox"
+    | "scale" | "linear_scale" | "slider"
+    | "rating"
+    | "text" | "short_answer" | "paragraph"
+    | "number"
+    | "boolean" | "yes_no"
+    | "dropdown"
+    | "date" | "time"
+    | "likert"
+    | "choice_grid" | "checkbox_grid"
+    | "file_upload"
+    | "multi_answer";
+  options?: string[] | null;
+  question_id?: string | null;
+  question_ids?: string[] | null;
+  questions?: string[] | null;
+  question_options?: (string[] | null)[] | null;
+  question_types?: string[] | null;
+  question_scales?: string[] | null;
+}
+
 interface WebSocketMessage {
   type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history" | "thought_update";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
   request_attachment?: boolean;
+  question_meta?: QuestionMeta;
   message?: string;
   forms?: any[];
   form_data?: Record<string, any>;
@@ -47,7 +72,7 @@ interface WebSocketMessage {
 
 interface UseWebSocketOptions {
   serverUrl?: string;
-  onMessage?: (message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean) => void;
+  onMessage?: (message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean, questionMeta?: QuestionMeta) => void;
   onTranscription?: (transcription: string) => void;
   onAudioStart?: (messageId: string, totalSize: number) => void;
   onAudioChunk?: (messageId: string, audioData: ArrayBuffer, isLast: boolean) => void;
@@ -162,7 +187,7 @@ export default function useWebSocket({
               attachments: data.interview_state.attachments || [],
               formId: data.interview_state.formId,
             } : undefined;
-            onMessage?.(data.text || "", data.transcription, interviewState, data.request_attachment || false);
+            onMessage?.(data.text || "", data.transcription, interviewState, data.request_attachment || false, data.question_meta);
             
             // Handle attachment request if present
             if (data.request_attachment && onAttachmentRequest) {

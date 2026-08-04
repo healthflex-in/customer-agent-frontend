@@ -496,30 +496,49 @@ function _MultiAnswerInput({
   questions,
   questionOptions,
   questionTypes,
+  questionScales,
   onAnswer,
 }: {
   questions: string[];
   questionOptions?: (string[] | null)[] | null;
   questionTypes?: string[] | null;
+  questionScales?: string[] | null;
   onAnswer: (v: string) => void;
 }) {
   const [answers, setAnswers] = useState<string[]>(new Array(questions.length).fill(""));
-  const allAnswered = answers.every(a => a !== "");
+  const [submitted, setSubmitted] = useState(false);
 
-  const setAnswer = (i: number, val: string) =>
+  const answeredCount = answers.filter(a => a.trim() !== "").length;
+  const allAnswered = answeredCount === questions.length;
+  const progressPct = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0;
+
+  const setAnswer = (i: number, val: string) => {
+    if (submitted) return;
     setAnswers(prev => { const n = [...prev]; n[i] = val; return n; });
+  };
+
+  // Build section groups: [{sectionName, indices[]}]
+  const sections: { name: string; indices: number[] }[] = [];
+  questions.forEach((_, i) => {
+    const scale = questionScales?.[i] || "";
+    const last = sections[sections.length - 1];
+    if (last && last.name === scale) {
+      last.indices.push(i);
+    } else {
+      sections.push({ name: scale, indices: [i] });
+    }
+  });
 
   const renderControl = (i: number) => {
     const qType = questionTypes?.[i] ?? "text";
     const opts = questionOptions?.[i];
 
-    // 0–10 scale (NPS)
     if (qType === "scale" || qType === "linear_scale") {
       return (
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap mt-1">
           {Array.from({ length: 11 }, (_, n) => (
             <button key={n} onClick={() => setAnswer(i, String(n))}
-              className={cn("w-9 h-9 rounded-lg text-sm font-bold transition-all border",
+              className={cn("w-8 h-8 rounded-lg text-xs font-bold transition-all border",
                 answers[i] === String(n)
                   ? "bg-stance-neon text-stance-steel border-stance-neon"
                   : n <= 3 ? "bg-green-500/20 border-green-400/40 hover:bg-green-500/40 text-white"
@@ -533,14 +552,13 @@ function _MultiAnswerInput({
       );
     }
 
-    // Boolean / yes-no
     if (qType === "boolean" || qType === "yes_no") {
       const bOpts = opts?.length ? opts : ["Yes", "No"];
       return (
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-1">
           {bOpts.map(opt => (
             <button key={opt} onClick={() => setAnswer(i, opt)}
-              className={cn("flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-all border",
+              className={cn("flex-1 px-3 py-1.5 rounded-xl text-sm font-bold transition-all border",
                 answers[i] === opt
                   ? "bg-stance-neon text-stance-steel border-stance-neon"
                   : "bg-white/10 text-white border-white/20 hover:border-stance-neon/60"
@@ -552,13 +570,12 @@ function _MultiAnswerInput({
       );
     }
 
-    // Single choice MCQ
     if ((qType === "single_choice" || qType === "dropdown") && opts?.length) {
       return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap gap-1.5 mt-1">
           {opts.map(opt => (
             <button key={opt} onClick={() => setAnswer(i, opt)}
-              className={cn("text-left px-3 py-2 rounded-lg text-sm transition-all border",
+              className={cn("px-3 py-1.5 rounded-lg text-xs transition-all border",
                 answers[i] === opt
                   ? "bg-stance-neon text-stance-steel border-stance-neon font-bold"
                   : "bg-white/10 text-white border-white/20 hover:border-stance-neon/60"
@@ -570,33 +587,121 @@ function _MultiAnswerInput({
       );
     }
 
-    // Text fallback
     return (
       <input type="text" value={answers[i]}
         onChange={e => setAnswer(i, e.target.value)}
         placeholder="Type your answer…"
-        className={_INPUT_BASE}
+        className={cn(_INPUT_BASE, "mt-1")}
       />
     );
   };
 
-  return (
-    <div className="mt-4 flex flex-col gap-5">
-      {questions.map((q, i) => (
-        <div key={i} className="flex flex-col gap-2">
-          <p className="text-xs text-white/70 leading-relaxed">{q}</p>
-          {renderControl(i)}
+  if (submitted) {
+    return (
+      <div className="mt-3 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-stance-neon text-sm font-semibold">
+          <span>✓</span><span>Answers recorded</span>
         </div>
-      ))}
+        <div className="flex items-center gap-2 text-white/40 text-xs">
+          <span className="inline-flex gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:150ms]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:300ms]" />
+          </span>
+          <span>Processing…</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-0">
+      {/* Progress bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-stance-neon rounded-full transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        <span className="text-xs text-white/40 tabular-nums shrink-0">
+          {answeredCount}/{questions.length} answered
+        </span>
+      </div>
+
+      {/* Voice hint */}
+      <p className="text-xs text-white/30 mb-4 italic">
+        Tap the mic below to answer all questions by voice, or select your answers here.
+      </p>
+
+      {/* Questions grouped by scale section */}
+      <div className="flex flex-col gap-5">
+        {sections.map((sec, si) => (
+          <div key={si}>
+            {sec.name && (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stance-neon/70 mb-3 border-b border-white/10 pb-1">
+                {sec.name}
+              </p>
+            )}
+            <div className="flex flex-col gap-4">
+              {sec.indices.map(i => (
+                <div key={i} className={cn(
+                  "rounded-xl p-3 transition-all",
+                  answers[i] ? "bg-white/5 border border-white/10" : "bg-white/[0.03] border border-white/5"
+                )}>
+                  <p className="text-sm text-white/90 leading-snug mb-2">{questions[i]}</p>
+                  {renderControl(i)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Submit */}
       <button
-        disabled={!allAnswered}
-        onClick={() => onAnswer(answers.join("|"))}
-        className="px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed self-start"
+        onClick={() => { setSubmitted(true); onAnswer(answers.join("|")); }}
+        className={cn(
+          "mt-6 w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.98]",
+          allAnswered
+            ? "bg-stance-neon text-stance-steel hover:bg-stance-neon/90 shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
+            : "bg-white/10 text-white/50 border border-white/10"
+        )}
       >
-        Submit All Answers
+        {allAnswered
+          ? "Submit All Answers"
+          : `Submit (${answeredCount}/${questions.length} answered)`}
       </button>
     </div>
   );
+}
+
+function _PromWrapper({
+  onAnswer,
+  children,
+}: {
+  onAnswer: (v: string) => void;
+  children: (submit: (v: string) => void) => React.ReactNode;
+}) {
+  const [submitted, setSubmitted] = useState(false);
+  if (submitted) {
+    return (
+      <div className="mt-3 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-stance-neon text-sm font-semibold">
+          <span>✓</span><span>Answer recorded</span>
+        </div>
+        <div className="flex items-center gap-2 text-white/40 text-xs">
+          <span className="inline-flex gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:150ms]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:300ms]" />
+          </span>
+          <span>Processing…</span>
+        </div>
+      </div>
+    );
+  }
+  return <>{children((v) => { setSubmitted(true); onAnswer(v); })}</>;
 }
 
 export default function TranscriptionInterface({
@@ -1346,14 +1451,16 @@ export default function TranscriptionInterface({
   // Render an interactive question UI based on question type
   const renderQuestionInput = (meta: QuestionMeta, onAnswer: (answer: string) => void) => {
     const { type, options } = meta;
+    const isProm = !!meta.question_id; // single-question PROM turns
 
-    // ── multi_answer: grouped questions with per-question options/types ─────────
+    // ── multi_answer: all PROM questions at once with section grouping ───────────
     if (type === "multi_answer" && meta.questions?.length) {
       return (
         <_MultiAnswerInput
           questions={meta.questions}
           questionOptions={meta.question_options ?? []}
           questionTypes={meta.question_types ?? []}
+          questionScales={meta.question_scales ?? []}
           onAnswer={onAnswer}
         />
       );
@@ -1362,30 +1469,36 @@ export default function TranscriptionInterface({
     // ── boolean / yes_no → 2-option single choice ────────────────────────────
     if (type === "boolean" || type === "yes_no") {
       const opts = options?.length ? options : ["Yes", "No"];
-      return (
+      const inner = (submit: (v: string) => void) => (
         <div className="mt-4 flex gap-2">
           {opts.map((opt, i) => (
-            <button key={i} onClick={() => onAnswer(opt)}
+            <button key={i} onClick={() => submit(opt)}
               className="flex-1 px-4 py-3 rounded-xl bg-white/10 hover:bg-stance-neon/20 border border-white/20 hover:border-stance-neon text-white text-sm font-bold transition-all active:scale-[0.98]">
               {opt}
             </button>
           ))}
         </div>
       );
+      return isProm
+        ? <_PromWrapper onAnswer={onAnswer}>{inner}</_PromWrapper>
+        : inner(onAnswer);
     }
 
     // ── single choice ─────────────────────────────────────────────────────────
     if (type === "single_choice" && options?.length) {
-      return (
+      const inner = (submit: (v: string) => void) => (
         <div className="mt-4 flex flex-col gap-2">
           {options.map((opt, i) => (
-            <button key={i} onClick={() => onAnswer(opt)}
+            <button key={i} onClick={() => submit(opt)}
               className="text-left px-4 py-3 rounded-xl bg-white/10 hover:bg-stance-neon/20 border border-white/20 hover:border-stance-neon text-white text-sm font-medium transition-all active:scale-[0.98]">
               {opt}
             </button>
           ))}
         </div>
       );
+      return isProm
+        ? <_PromWrapper onAnswer={onAnswer}>{inner}</_PromWrapper>
+        : inner(onAnswer);
     }
 
     // ── multiple choice / checkbox ────────────────────────────────────────────
@@ -1402,11 +1515,11 @@ export default function TranscriptionInterface({
     if (type === "scale" || type === "linear_scale") {
       const minLabel = options?.[0] ?? null;
       const maxLabel = options?.[1] ?? null;
-      return (
+      const scaleInner = (submit: (v: string) => void) => (
         <div className="mt-4">
           <div className="flex gap-1 flex-wrap">
             {Array.from({ length: 11 }, (_, i) => (
-              <button key={i} onClick={() => onAnswer(String(i))}
+              <button key={i} onClick={() => submit(String(i))}
                 className={cn("w-10 h-10 rounded-lg text-sm font-bold transition-all active:scale-95 border",
                   i <= 3 ? "bg-green-500/20 border-green-400/40 hover:bg-green-500/40 text-white"
                     : i <= 6 ? "bg-yellow-500/20 border-yellow-400/40 hover:bg-yellow-500/40 text-white"
@@ -1423,6 +1536,9 @@ export default function TranscriptionInterface({
           )}
         </div>
       );
+      return isProm
+        ? <_PromWrapper onAnswer={onAnswer}>{scaleInner}</_PromWrapper>
+        : scaleInner(onAnswer);
     }
 
     // ── rating (stars) ────────────────────────────────────────────────────────
@@ -1805,11 +1921,21 @@ export default function TranscriptionInterface({
                     )}>
                       {isAssistant
                         ? <>
-                            {formatMessageContent(message.content)}
+                            {/* Hide the numbered question list for the active MCQ batch — it's
+                                shown individually inside _MultiAnswerInput. For past batches
+                                (not last), show the content so there's a visible record. */}
+                            {!(isLastAssistant && message.questionMeta?.type === "multi_answer") && formatMessageContent(message.content)}
                             {isLastAssistant && message.questionMeta && renderQuestionInput(
                               message.questionMeta,
                               (answer) => {
-                                if (sendTranscriptRef.current) sendTranscriptRef.current(answer);
+                                // PROM questions (any type with question_id/s): silent submit — no chat bubble
+                                const isProm = !!(message.questionMeta?.question_id || message.questionMeta?.question_ids?.length);
+                                if (isProm || message.questionMeta?.type === "multi_answer") {
+                                  sendTextInput(answer);
+                                  setIsUnderstanding(true);
+                                } else {
+                                  if (sendTranscriptRef.current) sendTranscriptRef.current(answer);
+                                }
                               }
                             )}
                           </>
