@@ -8,7 +8,6 @@ export default function ConsentPage() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [status, setStatus] = useState<ConsentStatus>("loading");
-  const [accepting, setAccepting] = useState(false);
   const [checked, setChecked] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -17,11 +16,6 @@ export default function ConsentPage() {
     if (!userId) {
       setStatus("error");
       setErrorMsg("Invalid link — no user ID provided.");
-      return;
-    }
-    // Dev: skip the API check and show the consent form immediately.
-    if (import.meta.env.DEV) {
-      setStatus("required");
       return;
     }
     fetch(getApiUrl(`/api/users/${userId}/consent`))
@@ -46,32 +40,14 @@ export default function ConsentPage() {
     }
   }, [status, userId, navigate]);
 
-  const handleAccept = async () => {
+  const handleAccept = () => {
     if (!checked || !userId) return;
-
-    // Dev bypass — skip the consent API call and go straight to the interview.
-    if (import.meta.env.DEV) {
-      navigate(`/${userId}/FRM-01`, { replace: true });
-      return;
-    }
-
-    setAccepting(true);
-    try {
-      const res = await fetch(getApiUrl(`/api/users/${userId}/consent`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStatus("accepted"); // triggers redirect via useEffect
-      } else {
-        setErrorMsg("Failed to record consent. Please try again.");
-      }
-    } catch {
-      setErrorMsg("Network error. Please try again.");
-    } finally {
-      setAccepting(false);
-    }
+    const isDev = import.meta.env.VITE_MODE === 'development';
+    const consentBase = isDev
+      ? 'https://dev.consent.stance.health'
+      : 'https://consent.stance.health';
+    const returnUrl = `${window.location.origin}/${userId}/FRM-01`;
+    window.location.href = `${consentBase}/${userId}?redirect=${encodeURIComponent(returnUrl)}`;
   };
 
   if (status === "loading" || status === "accepted") {
@@ -169,14 +145,14 @@ export default function ConsentPage() {
         {/* CTA */}
         <button
           onClick={handleAccept}
-          disabled={!checked || accepting}
+          disabled={!checked}
           className={`w-full py-4 rounded-2xl font-bold text-base transition-all ${
-            checked && !accepting
+            checked
               ? "bg-[#C8FF00] text-[#0E1B2A] hover:bg-[#b8ef00] active:scale-[0.98]"
               : "bg-white/10 text-white/30 cursor-not-allowed"
           }`}
         >
-          {accepting ? "Saving..." : "I Agree — Continue to Assessment"}
+          I Agree — Continue to Assessment
         </button>
 
         <p className="text-center text-white/30 text-xs">
