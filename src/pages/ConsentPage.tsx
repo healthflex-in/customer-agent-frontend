@@ -42,7 +42,7 @@ export default function ConsentPage() {
 
   const handleAccept = () => {
     if (!checked || !userId) return;
-    const isDev = import.meta.env.VITE_MODE === 'development';
+    const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
     const consentBase = isDev
       ? 'https://dev.consent.stance.health'
       : 'https://consent.stance.health';
