@@ -42,7 +42,10 @@ export default function ConsentPage() {
 
   const handleAccept = () => {
     if (!checked || !userId) return;
-    const consentBase = (import.meta.env.VITE_CONSENT_URL || "https://consent.stance.health").replace(/\/$/, "");
+    const isDev = import.meta.env.VITE_MODE === 'development';
+    const consentBase = isDev
+      ? 'https://dev.consent.stance.health'
+      : 'https://consent.stance.health';
     const returnUrl = `${window.location.origin}/${userId}/FRM-01`;
     window.location.href = `${consentBase}/${userId}?redirect=${encodeURIComponent(returnUrl)}`;
   };
