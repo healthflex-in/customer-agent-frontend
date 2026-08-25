@@ -18,6 +18,12 @@ export default function ConsentPage() {
       setErrorMsg("Invalid link — no user ID provided.");
       return;
     }
+    // Local dev: skip the API check and show the consent form directly.
+    // handleAccept still redirects to the real consent app.
+    if (import.meta.env.DEV) {
+      setStatus("required");
+      return;
+    }
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => {
