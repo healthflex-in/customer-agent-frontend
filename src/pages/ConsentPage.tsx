@@ -18,6 +18,12 @@ export default function ConsentPage() {
       setErrorMsg("Invalid link — no user ID provided.");
       return;
     }
+    // Local dev: skip the API check and show the consent form directly.
+    // handleAccept still redirects to the real consent app.
+    if (import.meta.env.DEV) {
+      setStatus("required");
+      return;
+    }
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => {
@@ -42,7 +48,7 @@ export default function ConsentPage() {
 
   const handleAccept = () => {
     if (!checked || !userId) return;
-    const isDev = import.meta.env.VITE_MODE === 'development';
+    const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
     const consentBase = isDev
       ? 'https://dev.consent.stance.health'
       : 'https://consent.stance.health';

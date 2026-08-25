@@ -37,6 +37,7 @@ interface QuestionMeta {
   questions?: string[] | null;
   question_options?: (string[] | null)[] | null;
   question_types?: string[] | null;
+  question_scales?: (string[] | null)[] | null;
 }
 
 interface Message {
@@ -762,15 +763,10 @@ export default function TranscriptionInterface({
   // ── Consent check ────────────────────────────────────────────────────────────
   const checkConsent = useCallback(() => {
     if (!userId) return;
-    // Dev bypass — treat consent as already accepted so the gate doesn't block testing.
-    if (import.meta.env.DEV) {
-      setConsentAccepted(true);
-      return;
-    }
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => setConsentAccepted(!!data.consentAccepted))
-      .catch(() => setConsentAccepted(true)); // fail open — don't block patient
+      .catch(() => setConsentAccepted(false)); // fail closed — show consent button if API unreachable
   }, [userId]);
 
   useEffect(() => {
@@ -1875,7 +1871,12 @@ export default function TranscriptionInterface({
                 {/* Consent gate — opens external consent site in new tab */}
                 {consentAccepted === false && (
                   <button
-                    onClick={() => window.open(`https://consent.stance.health/${userId}`, "_blank", "noopener")}
+                    onClick={() => {
+                      const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
+                      const consentBase = isDev ? 'https://dev.consent.stance.health' : 'https://consent.stance.health';
+                      const returnUrl = `${window.location.origin}/${userId}/FRM-01`;
+                      window.open(`${consentBase}/${userId}?redirect=${encodeURIComponent(returnUrl)}`, "_blank", "noopener");
+                    }}
                     className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
                   >
                     <ShieldCheck size={16} />

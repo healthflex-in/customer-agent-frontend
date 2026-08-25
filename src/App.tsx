@@ -18,7 +18,9 @@ function UserRedirect() {
 // Redirect /consent/:userId → external consent site
 function ConsentRedirect() {
   const { userId } = useParams<{ userId: string }>();
-  window.location.replace(`https://consent.stance.health/${userId}`);
+  const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
+  const consentBase = isDev ? 'https://dev.consent.stance.health' : 'https://consent.stance.health';
+  window.location.replace(`${consentBase}/${userId}`);
   return null;
 }
 
