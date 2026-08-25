@@ -22,22 +22,22 @@ export function MultipleChoiceCard({
 
   const styles = {
     glass: {
-      background: "rgba(30, 30, 32, 0.7)",
+      background: "hsl(var(--card))",
       backdropFilter: "blur(12px)",
-      border: "1px solid #2D2D33",
-      shadow: "none"
+      border: "1px solid hsl(var(--border))",
+      shadow: "0 8px 24px hsl(var(--primary) / 0.08)",
     },
     gradient: {
-      background: "linear-gradient(135deg, #FCD34D 0%, #F59E0B 100%)",
+      background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
       backdropFilter: "none",
-      border: "none",
-      shadow: "0 8px 32px rgba(252, 211, 77, 0.3)"
+      border: "1px solid hsl(var(--border))",
+      shadow: "0 8px 24px hsl(var(--primary) / 0.15)",
     },
     clean: {
-      background: "#1F1F1F",
+      background: "hsl(var(--card))",
       backdropFilter: "none",
-      border: "1px solid #3F3F3F",
-      shadow: "0 2px 24px rgba(252, 211, 77, 0.1)"
+      border: "1px solid hsl(var(--border))",
+      shadow: "0 2px 18px hsl(var(--primary) / 0.12)",
     }
   };
 
@@ -64,7 +64,7 @@ export function MultipleChoiceCard({
           <div>
             <h3 
               style={{ 
-                color: style === "gradient" ? "#000000" : "#FFFFFF",
+                color: style === "gradient" ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
                 fontFamily: "Inter, sans-serif",
                 fontSize: "16px",
                 fontWeight: 600,
@@ -76,7 +76,7 @@ export function MultipleChoiceCard({
             </h3>
             <p 
               style={{ 
-                color: style === "gradient" ? "rgba(0, 0, 0, 0.7)" : "rgba(255, 255, 255, 0.7)",
+                color: style === "gradient" ? "hsl(var(--muted-foreground))" : "hsl(var(--muted-foreground))",
                 fontFamily: "Inter, sans-serif",
                 fontSize: "13px",
                 lineHeight: "1.5"
@@ -99,27 +99,11 @@ export function MultipleChoiceCard({
                   style={{
                     animationDelay: `${index * 50}ms`,
                     backgroundColor: isSelected
-                      ? (style === "gradient" ? "rgba(0, 0, 0, 0.15)" : "rgba(252, 211, 77, 0.2)")
-                      : (style === "gradient" ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.08)"),
+                      ? (style === "gradient" ? "hsl(var(--foreground) / 0.10)" : "hsl(var(--primary) / 0.14)")
+                      : (style === "gradient" ? "hsl(var(--foreground) / 0.05)" : "hsl(var(--muted))"),
                     border: isSelected
-                      ? (style === "gradient" ? "2px solid rgba(0, 0, 0, 0.4)" : "2px solid #FCD34D")
-                      : "2px solid transparent",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.backgroundColor = style === "gradient" 
-                        ? "rgba(0, 0, 0, 0.12)" 
-                        : "rgba(255, 255, 255, 0.12)";
-                    } else {
-                      e.currentTarget.style.backgroundColor = style === "gradient"
-                        ? "rgba(0, 0, 0, 0.2)"
-                        : "rgba(252, 211, 77, 0.3)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isSelected
-                      ? (style === "gradient" ? "rgba(0, 0, 0, 0.15)" : "rgba(252, 211, 77, 0.2)")
-                      : (style === "gradient" ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.08)");
+                      ? (style === "gradient" ? "1px solid hsl(var(--foreground) / 0.35)" : "1px solid hsl(var(--primary))")
+                      : "1px solid hsl(var(--border))",
                   }}
                 >
                   <div className="flex items-center gap-3">
@@ -128,11 +112,11 @@ export function MultipleChoiceCard({
                       className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                       style={{
                         backgroundColor: isSelected
-                          ? (style === "gradient" ? "#000000" : "#FCD34D")
-                          : (style === "gradient" ? "rgba(0, 0, 0, 0.15)" : "rgba(252, 211, 77, 0.2)"),
+                          ? (style === "gradient" ? "hsl(var(--foreground))" : "hsl(var(--primary))")
+                          : (style === "gradient" ? "hsl(var(--foreground) / 0.12)" : "hsl(var(--muted))"),
                         color: isSelected
-                          ? (style === "gradient" ? "#FCD34D" : "#000000")
-                          : (style === "gradient" ? "rgba(0, 0, 0, 0.7)" : "rgba(255, 255, 255, 0.7)"),
+                          ? (style === "gradient" ? "hsl(var(--primary))" : "hsl(var(--primary-foreground))")
+                          : (style === "gradient" ? "hsl(var(--primary))" : "hsl(var(--foreground))"),
                         fontFamily: "Inter, sans-serif",
                         fontSize: "14px",
                         fontWeight: 700
@@ -144,7 +128,7 @@ export function MultipleChoiceCard({
                     {/* Option text */}
                     <span
                       style={{
-                        color: style === "gradient" ? "#000000" : "#FFFFFF",
+                        color: "hsl(var(--foreground))",
                         fontFamily: "Inter, sans-serif",
                         fontSize: "14px",
                         fontWeight: isSelected ? 600 : 400,
@@ -160,7 +144,7 @@ export function MultipleChoiceCard({
                     <div
                       className="absolute top-3 right-3 w-2 h-2 rounded-full animate-in zoom-in duration-200"
                       style={{
-                        backgroundColor: style === "gradient" ? "#000000" : "#FCD34D"
+                        backgroundColor: style === "gradient" ? "hsl(var(--foreground))" : "hsl(var(--primary))"
                       }}
                     />
                   )}

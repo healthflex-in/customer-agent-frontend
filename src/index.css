@@ -1,73 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/*
+ * Stance Health design system
+ *
+ * Primary palette: Neon Green #DDFE71, Washed Stone #ADDCEC, Steel Blue #132644,
+ *                  Dark Grey #2F2F32, Light Smoke #ECECEC, White #FFFFFF.
+ * Secondary palette: Cosmic Latte #FBF9ED, Lava 20 #F8DBD3, Sun #FE7833,
+ *                    Purple 20 #E4DAFC, Mint 200 #203A37.
+ *
+ * Typography: Unbounded (Bold / Extra-Bold) for display headlines,
+ *             DM Sans (Regular / SemiBold / Light) for body and UI.
+ */
 
 @layer base {
   :root {
-    --background: 220 15% 8%;
-    --foreground: 0 0% 98%;
-    --card: 220 15% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 220 15% 12%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 142 76% 56%;
-    --primary-foreground: 220 15% 8%;
-    --secondary: 220 15% 15%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 220 10% 20%;
-    --muted-foreground: 0 0% 65%;
-    --accent: 142 76% 56%;
-    --accent-foreground: 220 15% 8%;
-    --destructive: 0 62.8% 50.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 142 76% 56%;
+    /* Surfaces */
+    --background: 216 20% 96%;          /* Light Gray (matches mobile app) */
+    --foreground: 240 3% 19%;           /* Dark Grey #2F2F32 */
+    --card: 0 0% 100%;
+    --card-foreground: 240 3% 19%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 3% 19%;
+
+    /* Primary = Steel Blue */
+    --primary: 217 56% 17%;             /* Steel Blue #132644 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 56% 13%;
+
+    /* Accent = Neon Green (vibrant brand color) */
+    --accent: 74 99% 72%;               /* Neon Green #DDFE71 */
+    --accent-foreground: 240 3% 19%;    /* Dark Grey on green */
+
+    /* Secondary = Washed Stone (soft blue surface) */
+    --secondary: 0 0% 93%;              /* Light Smoke */
+    --secondary-foreground: 240 3% 19%;
+
+    /* Muted = Light Smoke */
+    --muted: 0 0% 93%;
+    --muted-foreground: 240 3% 40%;
+
+    /* Destructive / warm = Sun */
+    --destructive: 20 99% 60%;          /* Sun #FE7833 */
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders + inputs */
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 217 56% 17%;
+
     --radius: 1rem;
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --glow: 0 0 20px hsl(142 76% 56% / 0.3);
-    --sidebar-background: 220 15% 10%;
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --glow: 0 0 20px hsl(74 99% 72% / 0.35);
+    --glow-strong: 0 0 30px hsl(74 99% 72% / 0.55);
+
+    /* Sidebar (uses Steel Blue navy) */
+    --sidebar-background: 217 56% 17%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 142 76% 56%;
-    --sidebar-primary-foreground: 220 15% 8%;
-    --sidebar-accent: 220 15% 15%;
+    --sidebar-primary: 74 99% 72%;
+    --sidebar-primary-foreground: 240 3% 19%;
+    --sidebar-accent: 217 56% 22%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 142 76% 56%;
+    --sidebar-border: 217 35% 28%;
+    --sidebar-ring: 74 99% 72%;
   }
 
   .dark {
-    --background: 220 15% 8%;
-    --foreground: 0 0% 98%;
-    --card: 220 15% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 220 15% 12%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 142 76% 56%;
-    --primary-foreground: 220 15% 8%;
-    --secondary: 220 15% 15%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 220 10% 20%;
-    --muted-foreground: 0 0% 65%;
-    --accent: 142 76% 56%;
-    --accent-foreground: 220 15% 8%;
-    --destructive: 0 62.8% 50.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 142 76% 56%;
-    --sidebar-background: 220 15% 10%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 142 76% 56%;
-    --sidebar-primary-foreground: 220 15% 8%;
-    --sidebar-accent: 220 15% 15%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 142 76% 56%;
+    --background: 217 56% 9%;           /* deep Steel Blue */
+    --foreground: 0 0% 96%;
+    --card: 217 50% 13%;
+    --card-foreground: 0 0% 96%;
+    --popover: 217 50% 13%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 74 99% 72%;              /* Neon Green pops on dark */
+    --primary-foreground: 240 3% 12%;
+    --primary-hover: 74 99% 65%;
+    --secondary: 217 35% 18%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 217 35% 18%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 74 99% 72%;
+    --accent-foreground: 240 3% 12%;
+    --destructive: 20 99% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 30% 22%;
+    --input: 217 30% 22%;
+    --ring: 74 99% 72%;
+    --sidebar-background: 217 56% 9%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 74 99% 72%;
+    --sidebar-primary-foreground: 240 3% 12%;
+    --sidebar-accent: 217 35% 18%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 217 30% 22%;
+    --sidebar-ring: 74 99% 72%;
   }
 }
 
@@ -76,7 +106,113 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    /* Prevent iOS bounce scroll from causing layout shifts */
+    overscroll-behavior: none;
+  }
+
+  .font-display,
+  h1.font-display,
+  h2.font-display {
+    font-family: 'Unbounded', 'DM Sans', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+
+  /* Responsive utilities */
+  .sidebar-collapsed {
+    transform: translateX(-100%);
+  }
+
+  .sidebar-visible {
+    transform: translateX(0);
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+  }
+
+  .gradient-card {
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(220 15% 12%) 100%);
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: var(--glow);
+  }
+
+  .glow-primary-strong {
+    box-shadow: var(--glow-strong);
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  /* Animations */
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      box-shadow: 0 0 20px hsl(74 99% 72% / 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 40px hsl(74 99% 72% / 0.8);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+
+  @keyframes fade-in-up {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.4s ease-out;
   }
 }

@@ -1,4 +1,5 @@
 import { Brain, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type UnderstandingStyle = "glass" | "gradient" | "clean";
 
@@ -19,34 +20,34 @@ const styleTokens: Record<
 > = {
   glass: {
     container: {
-      background: "rgba(30, 30, 32, 0.7)",
+      background: "hsl(var(--card))",
       backdropFilter: "blur(12px)",
-      border: "1px solid #2D2D33",
-      boxShadow: "none",
+      border: "1px solid hsl(var(--border))",
+      boxShadow: "0 8px 24px hsl(var(--primary) / 0.08)",
     },
-    primaryText: "#FFFFFF",
-    secondaryText: "rgba(255, 255, 255, 0.7)",
-    dotColor: "#FCD34D",
+    primaryText: "hsl(var(--foreground))",
+    secondaryText: "hsl(var(--muted-foreground))",
+    dotColor: "hsl(var(--primary))",
   },
   gradient: {
     container: {
-      background: "linear-gradient(135deg, #FCD34D 0%, #F59E0B 100%)",
-      border: "none",
-      boxShadow: "0 8px 32px rgba(252, 211, 77, 0.3)",
+      background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+      border: "1px solid hsl(var(--border))",
+      boxShadow: "0 8px 24px hsl(var(--primary) / 0.15)",
     },
-    primaryText: "#000000",
-    secondaryText: "rgba(0, 0, 0, 0.7)",
-    dotColor: "#000000",
+    primaryText: "hsl(var(--primary-foreground))",
+    secondaryText: "hsl(var(--muted-foreground))",
+    dotColor: "hsl(var(--foreground))",
   },
   clean: {
     container: {
-      background: "#1F1F1F",
-      border: "1px solid #3F3F3F",
-      boxShadow: "0 2px 24px rgba(252, 211, 77, 0.1)",
+      background: "#132644",
+      border: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: "0 4px 16px rgba(19,38,68,0.15)",
     },
-    primaryText: "#FFFFFF",
-    secondaryText: "rgba(255, 255, 255, 0.7)",
-    dotColor: "#FCD34D",
+    primaryText: "#ffffff",
+    secondaryText: "rgba(255,255,255,0.6)",
+    dotColor: "#DDFE71",
   },
 };
 
@@ -54,12 +55,13 @@ export function UnderstandingCard({
   style = "clean",
   headline = "Understanding your text...",
   caption = "Analyzing context and intent",
-}: UnderstandingCardProps) {
+  className,
+}: UnderstandingCardProps & { className?: string }) {
   const tokens = styleTokens[style];
 
   return (
     <div
-      className="w-full max-w-[340px] rounded-[24px] p-6 relative overflow-hidden"
+      className={cn("w-full max-w-[340px] rounded-[24px] p-6 relative overflow-hidden", className)}
       style={tokens.container}
     >
       {/* Decorative sparkles */}

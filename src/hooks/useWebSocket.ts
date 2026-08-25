@@ -13,14 +13,51 @@ interface InterviewState {
     uploadedAt: string;
   }>;
   formId?: string;
+  promSteps?: string[] | null;
+}
+
+interface ChatHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+interface ThoughtStage {
+  stage: string;
+  detail: string;
+  status: "done" | "active" | "pending";
+}
+
+export interface QuestionMeta {
+  type:
+    | "single_choice" | "multiple_choice" | "checkbox"
+    | "scale" | "linear_scale" | "slider"
+    | "rating"
+    | "text" | "short_answer" | "paragraph"
+    | "number"
+    | "boolean" | "yes_no"
+    | "dropdown"
+    | "date" | "time"
+    | "likert"
+    | "choice_grid" | "checkbox_grid"
+    | "file_upload"
+    | "multi_answer";
+  options?: string[] | null;
+  question_id?: string | null;
+  question_ids?: string[] | null;
+  questions?: string[] | null;
+  question_options?: (string[] | null)[] | null;
+  question_types?: string[] | null;
+  question_scales?: string[] | null;
 }
 
 interface WebSocketMessage {
-  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded";
+  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history" | "thought_update";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
   request_attachment?: boolean;
+  question_meta?: QuestionMeta;
   message?: string;
   forms?: any[];
   form_data?: Record<string, any>;
@@ -29,11 +66,13 @@ interface WebSocketMessage {
   data?: string; // base64 encoded audio
   is_last?: boolean;
   timestamp?: number;
+  messages?: ChatHistoryMessage[]; // for chat_history type
+  thoughts?: ThoughtStage[]; // for thought_update type
 }
 
 interface UseWebSocketOptions {
   serverUrl?: string;
-  onMessage?: (message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean) => void;
+  onMessage?: (message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean, questionMeta?: QuestionMeta) => void;
   onTranscription?: (transcription: string) => void;
   onAudioStart?: (messageId: string, totalSize: number) => void;
   onAudioChunk?: (messageId: string, audioData: ArrayBuffer, isLast: boolean) => void;
@@ -42,10 +81,13 @@ interface UseWebSocketOptions {
   onFormSelectionRequired?: (forms: any[]) => void;
   onFormLoaded?: (formData: Record<string, any>, interviewState?: InterviewState) => void;
   onAttachmentRequest?: (messageText?: string) => void;
+  onChatHistory?: (messages: ChatHistoryMessage[]) => void;
+  onThoughtUpdate?: (thoughts: ThoughtStage[]) => void;
+  onToken?: (token: string) => void;
 }
 
 export default function useWebSocket({
-  serverUrl = getWsUrl(),
+  serverUrl,
   onMessage,
   onTranscription,
   onAudioStart,
@@ -55,6 +97,9 @@ export default function useWebSocket({
   onFormSelectionRequired,
   onFormLoaded,
   onAttachmentRequest,
+  onChatHistory,
+  onThoughtUpdate,
+  onToken,
 }: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -64,15 +109,19 @@ export default function useWebSocket({
   const audioBuffersRef = useRef<Map<string, Uint8Array>>(new Map());
 
   const connect = useCallback(async () => {
+    if (!serverUrl) {
+      return;
+    }
+
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
       return;
     }
-    
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
-    
+
     if (wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
@@ -84,7 +133,7 @@ export default function useWebSocket({
       onStatusChange?.("connecting");
 
       // Establish WebSocket connection directly (server handles session creation)
-      const ws = new WebSocket(`${serverUrl}/ws`);
+      const ws = new WebSocket(serverUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -138,7 +187,7 @@ export default function useWebSocket({
               attachments: data.interview_state.attachments || [],
               formId: data.interview_state.formId,
             } : undefined;
-            onMessage?.(data.text || "", data.transcription, interviewState, data.request_attachment || false);
+            onMessage?.(data.text || "", data.transcription, interviewState, data.request_attachment || false, data.question_meta);
             
             // Handle attachment request if present
             if (data.request_attachment && onAttachmentRequest) {
@@ -174,6 +223,19 @@ export default function useWebSocket({
               if (data.is_last) {
                 audioBuffersRef.current.delete(data.message_id);
               }
+            }
+          } else if (data.type === "token") {
+            // LLM streaming token — append to in-progress message
+            if (data.content && onToken) {
+              onToken(data.content as string);
+            }
+          } else if (data.type === "thought_update") {
+            if (data.thoughts && onThoughtUpdate) {
+              onThoughtUpdate(data.thoughts);
+            }
+          } else if (data.type === "chat_history") {
+            if (data.messages && onChatHistory) {
+              onChatHistory(data.messages);
             }
           } else if (data.type === "error") {
             onError?.(new Error(data.text || "Unknown error"));
@@ -211,7 +273,7 @@ export default function useWebSocket({
       onStatusChange?.("disconnected");
       onError?.(error as Error);
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect
@@ -281,17 +343,20 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  const sendStartInterview = useCallback((userId: string) => {
+  const sendStartInterview = useCallback((userId: string, formId?: string) => {
+    console.log(`[sendStartInterview] Called with userId=${userId}, formId=${formId}, wsState=${wsRef.current?.readyState}`);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: "start_interview",
-          userId: userId,
-          timestamp: Date.now() / 1000,
-        })
-      );
+      const message = {
+        type: "start_interview",
+        userId: userId,
+        formId: formId || null,
+        timestamp: Date.now() / 1000,
+      };
+      console.log(`[sendStartInterview] Sending message:`, message);
+      wsRef.current.send(JSON.stringify(message));
       return true;
     }
+    console.log(`[sendStartInterview] WebSocket not open, state=${wsRef.current?.readyState}`);
     return false;
   }, []);
 

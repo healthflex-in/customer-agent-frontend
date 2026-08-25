@@ -18,31 +18,32 @@ interface FormSelectionCardProps {
 
 const styleTokens = {
   glass: {
-    background: "rgba(30, 30, 32, 0.7)",
+    background: "hsl(var(--card))",
     backdropFilter: "blur(12px)",
-    border: "1px solid #2D2D33",
-    shadow: "none",
-    textColor: "#FFFFFF",
-    textMuted: "rgba(255, 255, 255, 0.7)",
-    iconColor: "#FCD34D",
+    border: "1px solid hsl(var(--border))",
+    shadow: "0 8px 24px hsl(var(--primary) / 0.08)",
+    textColor: "hsl(var(--foreground))",
+    textMuted: "hsl(var(--muted-foreground))",
+    iconColor: "hsl(var(--primary))",
   },
   gradient: {
-    background: "linear-gradient(135deg, #FCD34D 0%, #F59E0B 100%)",
+    background:
+      "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
     backdropFilter: "none",
-    border: "none",
-    shadow: "0 8px 32px rgba(252, 211, 77, 0.3)",
-    textColor: "#000000",
-    textMuted: "rgba(0, 0, 0, 0.7)",
-    iconColor: "#000000",
+    border: "1px solid hsl(var(--border))",
+    shadow: "0 8px 32px hsl(var(--primary) / 0.25)",
+    textColor: "hsl(var(--primary-foreground))",
+    textMuted: "hsl(var(--muted-foreground))",
+    iconColor: "hsl(var(--foreground))",
   },
   clean: {
-    background: "#1F1F1F",
+    background: "hsl(var(--card))",
     backdropFilter: "none",
-    border: "1px solid #3F3F3F",
-    shadow: "0 2px 24px rgba(252, 211, 77, 0.1)",
-    textColor: "#FFFFFF",
-    textMuted: "rgba(255, 255, 255, 0.7)",
-    iconColor: "#FCD34D",
+    border: "1px solid hsl(var(--border))",
+    shadow: "0 2px 24px hsl(var(--primary) / 0.1)",
+    textColor: "hsl(var(--foreground))",
+    textMuted: "hsl(var(--muted-foreground))",
+    iconColor: "hsl(var(--primary))",
   },
 };
 
@@ -112,23 +113,21 @@ export function FormSelectionCard({
                 animationDelay: `${index * 50}ms`,
                 backgroundColor:
                   style === "gradient"
-                    ? "rgba(0, 0, 0, 0.08)"
-                    : "rgba(255, 255, 255, 0.08)",
-                border: "1px solid",
-                borderColor:
-                  style === "gradient"
-                    ? "rgba(0, 0, 0, 0.2)"
-                    : "rgba(255, 255, 255, 0.1)",
+                    ? "hsl(var(--foreground) / 0.06)"
+                    : "hsl(var(--muted))",
+                border: "1px solid hsl(var(--border))",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = style === "gradient"
-                  ? "rgba(0, 0, 0, 0.12)"
-                  : "rgba(255, 255, 255, 0.12)";
+                e.currentTarget.style.backgroundColor =
+                  style === "gradient"
+                    ? "hsl(var(--foreground) / 0.1)"
+                    : "hsl(var(--muted) / 0.8)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = style === "gradient"
-                  ? "rgba(0, 0, 0, 0.08)"
-                  : "rgba(255, 255, 255, 0.08)";
+                e.currentTarget.style.backgroundColor =
+                  style === "gradient"
+                    ? "hsl(var(--foreground) / 0.06)"
+                    : "hsl(var(--muted))";
               }}
             >
               <div className="flex items-start gap-4">
@@ -137,8 +136,8 @@ export function FormSelectionCard({
                   style={{
                     backgroundColor:
                       style === "gradient"
-                        ? "rgba(0, 0, 0, 0.15)"
-                        : "rgba(252, 211, 77, 0.2)",
+                        ? "hsl(var(--foreground) / 0.12)"
+                        : "hsl(var(--primary) / 0.16)",
                   }}
                 >
                   <FileText

@@ -13,7 +13,24 @@ export default {
       },
     },
     extend: {
+    fontFamily: {
+      sans: ['"DM Sans"', "system-ui", "-apple-system", "sans-serif"],
+      display: ['"Unbounded"', '"DM Sans"', "system-ui", "sans-serif"],
+    },
     colors: {
+      // Stance Health raw brand tokens
+      stance: {
+        neon: "#DDFE71",
+        stone: "#ADDCEC",
+        steel: "#132644",
+        grey: "#2F2F32",
+        smoke: "#ECECEC",
+        latte: "#FBF9ED",
+        lava: "#F8DBD3",
+        sun: "#FE7833",
+        purple: "#E4DAFC",
+        mint: "#203A37",
+      },
       border: "hsl(var(--border))",
       input: "hsl(var(--input))",
       ring: "hsl(var(--ring))",
