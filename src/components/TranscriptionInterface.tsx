@@ -766,7 +766,7 @@ export default function TranscriptionInterface({
     fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => setConsentAccepted(!!data.consentAccepted))
-      .catch(() => setConsentAccepted(true)); // fail open — don't block patient
+      .catch(() => setConsentAccepted(false)); // fail closed — show consent button if API unreachable
   }, [userId]);
 
   useEffect(() => {
