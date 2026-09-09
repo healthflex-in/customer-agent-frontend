@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Mic, Save, Trash2, Send, Square, Paperclip, ShieldCheck } from "lucide-react";
-import { getApiUrl, getWsUrl } from "@/config/api";
+import { API_CONFIG, getApiUrl, getWsUrl } from "@/config/api";
+import { authenticatedFetch } from "@/config/auth";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -37,7 +38,7 @@ interface QuestionMeta {
   questions?: string[] | null;
   question_options?: (string[] | null)[] | null;
   question_types?: string[] | null;
-  question_scales?: (string[] | null)[] | null;
+  question_scales?: string[] | null;
 }
 
 interface Message {
@@ -62,6 +63,7 @@ interface InterviewState {
   missing_fields: string[];
   attachments?: Attachment[];
   formId?: string;
+  attemptId?: string | null;
   promSteps?: string[] | null;   // PROM scale names — replaces hardcoded FRM-01 steps
   sectionProgress?: {
     progress?: number;
@@ -73,16 +75,28 @@ interface InterviewState {
   };
 }
 
+type WindowWithLegacyAudioContext = Window & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `request-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 interface TranscriptionInterfaceProps {
   userId?: string;
   userName?: string;
   initialFormId?: string | null; // null = new form, string = existing form ID
+  initialAttemptId?: string | null;
 }
 
 // Compact typing-indicator style cards
 const _VOICE_HINTS = ["Understanding...", "Transcribing...", "Processing...", "Analysing...", "Thinking..."];
 
-function _VoiceProcessingCard() {
+function VoiceProcessingCard() {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setIdx(i => (i + 1) % _VOICE_HINTS.length), 1600);
@@ -102,7 +116,7 @@ function _VoiceProcessingCard() {
 }
 
 // ChatGPT-style compact thought stream
-function _CompactThoughtStream({ thoughts }: { thoughts: { stage: string; detail?: string; status: string }[] }) {
+function CompactThoughtStream({ thoughts }: { thoughts: { stage: string; detail?: string; status: string }[] }) {
   const active = thoughts.find(t => t.status === "active");
   const doneCount = thoughts.filter(t => t.status === "done").length;
   return (
@@ -124,7 +138,7 @@ function _CompactThoughtStream({ thoughts }: { thoughts: { stage: string; detail
 }
 
 // Compact processing indicator (while LLM responds)
-function _ThinkingDots() {
+function ThinkingDots() {
   return (
     <div className="inline-flex items-center gap-2 bg-white border border-stance-steel/8 rounded-2xl px-4 py-2.5 shadow-sm">
       <div className="flex gap-1">
@@ -142,7 +156,7 @@ function _ThinkingDots() {
 const _BTN_BASE = "px-5 py-2.5 rounded-xl bg-stance-neon text-stance-steel font-bold text-sm hover:bg-stance-neon/90 transition-all active:scale-[0.98] self-start mt-2";
 const _INPUT_BASE = "w-full bg-white/10 border border-white/20 rounded-xl text-white text-sm px-4 py-3 placeholder:text-white/30 focus:outline-none focus:border-stance-neon";
 
-function _ShortAnswerInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+function ShortAnswerInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   const [val, setVal] = useState("");
   return (
     <div className="mt-4 flex flex-col gap-2">
@@ -160,7 +174,7 @@ function _ShortAnswerInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   );
 }
 
-function _ParagraphInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+function ParagraphInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   const [val, setVal] = useState("");
   return (
     <div className="mt-4 flex flex-col gap-2">
@@ -177,7 +191,7 @@ function _ParagraphInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   );
 }
 
-function _DropdownSelect({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
+function DropdownSelect({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
   const [val, setVal] = useState("");
   return (
     <div className="mt-4 flex flex-col gap-2">
@@ -194,7 +208,7 @@ function _DropdownSelect({ options, onAnswer }: { options: string[]; onAnswer: (
   );
 }
 
-function _DateInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+function DateInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   const [val, setVal] = useState("");
   return (
     <div className="mt-4 flex flex-col gap-2">
@@ -209,7 +223,7 @@ function _DateInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   );
 }
 
-function _TimeInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+function TimeInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   const [val, setVal] = useState("");
   return (
     <div className="mt-4 flex flex-col gap-2">
@@ -224,7 +238,7 @@ function _TimeInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   );
 }
 
-function _LikertScale({ onAnswer, options }: { onAnswer: (v: string) => void; options?: string[] | null }) {
+function LikertScale({ onAnswer, options }: { onAnswer: (v: string) => void; options?: string[] | null }) {
   const labels = options?.length === 5
     ? options
     : ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"];
@@ -248,8 +262,9 @@ function _LikertScale({ onAnswer, options }: { onAnswer: (v: string) => void; op
 
 // options format: ["Row 1", "Row 2", "|", "Col A", "Col B"]  ("|" separates rows from cols)
 // If no "|" found, falls back to single-choice layout
-function _ChoiceGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
+function ChoiceGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
   const pivotIdx = options.indexOf("|");
+  const [selections, setSelections] = useState<Record<string, string>>({});
   if (pivotIdx < 0) {
     // No grid structure — render as horizontal single-choice
     return (
@@ -264,7 +279,6 @@ function _ChoiceGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: s
   }
   const rows = options.slice(0, pivotIdx);
   const cols = options.slice(pivotIdx + 1);
-  const [selections, setSelections] = useState<Record<string, string>>({});
   const set = (row: string, col: string) => setSelections(prev => ({ ...prev, [row]: col }));
   const allDone = rows.every(r => selections[r]);
   return (
@@ -304,7 +318,7 @@ function _ChoiceGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: s
   );
 }
 
-function _CheckboxGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
+function CheckboxGrid({ options, onAnswer }: { options: string[]; onAnswer: (v: string) => void }) {
   const pivotIdx = options.indexOf("|");
   const rows = pivotIdx >= 0 ? options.slice(0, pivotIdx) : ["Response"];
   const cols = pivotIdx >= 0 ? options.slice(pivotIdx + 1) : options;
@@ -352,7 +366,7 @@ function _CheckboxGrid({ options, onAnswer }: { options: string[]; onAnswer: (v:
   );
 }
 
-function _FileUploadInput({ onAnswer }: { onAnswer: (v: string) => void }) {
+function FileUploadInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   const [fileName, setFileName] = useState("");
   return (
     <div className="mt-4 flex flex-col gap-2">
@@ -370,7 +384,7 @@ function _FileUploadInput({ onAnswer }: { onAnswer: (v: string) => void }) {
   );
 }
 
-function _CheckboxQuestion({ options, onAnswer }: { options: string[]; onAnswer: (answer: string) => void }) {
+function CheckboxQuestion({ options, onAnswer }: { options: string[]; onAnswer: (answer: string) => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const toggle = (opt: string) => setSelected(prev => prev.includes(opt) ? prev.filter(o => o !== opt) : [...prev, opt]);
   return (
@@ -403,7 +417,7 @@ function _CheckboxQuestion({ options, onAnswer }: { options: string[]; onAnswer:
   );
 }
 
-function _NumberStepper({ onAnswer, min = 0, max = 100 }: { onAnswer: (v: string) => void; min?: number; max?: number }) {
+function NumberStepper({ onAnswer, min = 0, max = 100 }: { onAnswer: (v: string) => void; min?: number; max?: number }) {
   const [value, setValue] = useState<number>(min);
   const dec = () => setValue(v => Math.max(min, v - 1));
   const inc = () => setValue(v => Math.min(max, v + 1));
@@ -434,7 +448,7 @@ function _NumberStepper({ onAnswer, min = 0, max = 100 }: { onAnswer: (v: string
   );
 }
 
-function _RatingStars({ onAnswer }: { onAnswer: (v: string) => void }) {
+function RatingStars({ onAnswer }: { onAnswer: (v: string) => void }) {
   const [hovered, setHovered] = useState(0);
   const [selected, setSelected] = useState(0);
   return (
@@ -464,7 +478,7 @@ function _RatingStars({ onAnswer }: { onAnswer: (v: string) => void }) {
   );
 }
 
-function _SliderInput({ onAnswer, min = 0, max = 10, options }: { onAnswer: (v: string) => void; min?: number; max?: number; options?: string[] | null }) {
+function SliderInput({ onAnswer, min = 0, max = 10, options }: { onAnswer: (v: string) => void; min?: number; max?: number; options?: string[] | null }) {
   const [value, setValue] = useState(Math.round((min + max) / 2));
   const minLabel = options?.[0] ?? String(min);
   const maxLabel = options?.[1] ?? String(max);
@@ -493,7 +507,7 @@ function _SliderInput({ onAnswer, min = 0, max = 10, options }: { onAnswer: (v: 
   );
 }
 
-function _MultiAnswerInput({
+function MultiAnswerInput({
   questions,
   questionOptions,
   questionTypes,
@@ -677,7 +691,7 @@ function _MultiAnswerInput({
   );
 }
 
-function _PromWrapper({
+function PromWrapper({
   onAnswer,
   children,
 }: {
@@ -708,7 +722,8 @@ function _PromWrapper({
 export default function TranscriptionInterface({
   userId = "",
   userName = "",
-  initialFormId = null
+  initialFormId = null,
+  initialAttemptId = null,
 }: TranscriptionInterfaceProps = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState("");
@@ -716,7 +731,7 @@ export default function TranscriptionInterface({
   const [hasEdited, setHasEdited] = useState(false);
   const [isModelSpeaking, setIsModelSpeaking] = useState(false);
   const [interviewState, setInterviewState] = useState<InterviewState | null>(null);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [isUnderstanding, setIsUnderstanding] = useState(false);
   const [agentThoughts, setAgentThoughts] = useState<ThoughtStage[] | null>(null);
   const [streamingToken, setStreamingToken] = useState("");   // tokens arriving in real-time
@@ -726,6 +741,7 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
+  const currentAttemptIdRef = useRef<string | null>(initialAttemptId);
   const [inputMode, setInputMode] = useState<"voice" | "text" | null>(null); // null = show ready screen
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -746,14 +762,16 @@ export default function TranscriptionInterface({
   const sendTranscriptRef = useRef<((text: string) => void) | null>(null);
   const autoSendTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Track auto-send timeout
   const hasEditedRef = useRef<boolean>(false); // Track edit state for timeout callback
-  const lastSentTextRef = useRef<string | null>(null); // Track last sent text to prevent duplicates
-  const lastSentTimeRef = useRef<number>(0); // Track when last message was sent
+  const pendingRequestIdRef = useRef<string | null>(null);
+  const activeQuestionIdRef = useRef<string>("turn-0");
+  const questionSequenceRef = useRef(0);
 
 
   // Initialize audio context
   useEffect(() => {
     if (typeof window !== "undefined" && !audioContextRef.current) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext
+        || (window as WindowWithLegacyAudioContext).webkitAudioContext;
       if (AudioContextClass) {
         audioContextRef.current = new AudioContextClass();
       }
@@ -763,7 +781,7 @@ export default function TranscriptionInterface({
   // ── Consent check ────────────────────────────────────────────────────────────
   const checkConsent = useCallback(() => {
     if (!userId) return;
-    fetch(getApiUrl(`/api/users/${userId}/consent`))
+    authenticatedFetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => setConsentAccepted(!!data.consentAccepted))
       .catch(() => setConsentAccepted(false)); // fail closed — show consent button if API unreachable
@@ -821,16 +839,31 @@ export default function TranscriptionInterface({
     }
   }, []);
 
+  const rememberFormIdentity = useCallback((state: InterviewState) => {
+    if (state.formId) {
+      setCurrentFormId(state.formId);
+    }
+    currentAttemptIdRef.current = state.attemptId || null;
+    if (state.attemptId && typeof window !== "undefined") {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set("attemptId", state.attemptId);
+      window.history.replaceState(null, "", currentUrl.toString());
+    }
+  }, []);
+
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean, questionMeta?: QuestionMeta) => {
     // Clear the pending transcription ref when new AI message arrives
     pendingTranscriptionRef.current = null;
+    pendingRequestIdRef.current = null;
 
     // DO NOT clear the transcription textarea when new AI message arrives
     // User may want to keep the transcription and send it manually
     
     // Only add message if it has content
     if (message && message.trim()) {
+      questionSequenceRef.current += 1;
+      activeQuestionIdRef.current = `turn-${questionSequenceRef.current}`;
       // Add assistant message
       const aiMessage: Message = {
         role: "assistant",
@@ -861,11 +894,9 @@ export default function TranscriptionInterface({
     // Update interview state if provided
     if (interviewState) {
       setInterviewState(interviewState);
-      if (interviewState.formId) {
-        setCurrentFormId(interviewState.formId);
-      }
+      rememberFormIdentity(interviewState);
     }
-  }, []);
+  }, [rememberFormIdentity]);
 
   // Handle audio start from server
   const handleAudioStart = useCallback((messageId: string, totalSize: number) => {
@@ -965,6 +996,7 @@ export default function TranscriptionInterface({
   }, []);
 
   const handleWebSocketError = useCallback((error: Error) => {
+    pendingRequestIdRef.current = null;
     toast({
       title: "Connection Error",
       description: error.message,
@@ -973,18 +1005,18 @@ export default function TranscriptionInterface({
   }, [toast]);
 
   const handleWebSocketStatusChange = useCallback((status: "disconnected" | "connecting" | "connected") => {
-    // Status is managed by the hook
+    if (status === "disconnected") {
+      pendingRequestIdRef.current = null;
+    }
   }, []);
 
-  const handleFormLoaded = useCallback((formData: Record<string, any>, interviewState?: InterviewState) => {
+  const handleFormLoaded = useCallback((formData: Record<string, unknown>, interviewState?: InterviewState) => {
     setFormData(formData);
     if (interviewState) {
       setInterviewState(interviewState);
-      if (interviewState.formId) {
-        setCurrentFormId(interviewState.formId);
-      }
+      rememberFormIdentity(interviewState);
     }
-  }, []);
+  }, [rememberFormIdentity]);
 
   const handleTranscriptionStable = useCallback((transcription: string) => {
     handleTranscription(transcription);
@@ -1016,7 +1048,7 @@ export default function TranscriptionInterface({
 
   // When the full text_message arrives, clear the streaming buffer (already added to messages)
   const handleWebSocketMessageWithTokenClear = useCallback(
-    (message: string, transcription?: string, interviewState?: any, requestAttachment?: boolean, questionMeta?: QuestionMeta) => {
+    (message: string, transcription?: string, interviewState?: InterviewState, requestAttachment?: boolean, questionMeta?: QuestionMeta) => {
       setStreamingToken("");   // clear accumulated tokens — final message is now in messages[]
       handleWebSocketMessage(message, transcription, interviewState, requestAttachment, questionMeta);
     },
@@ -1042,13 +1074,10 @@ export default function TranscriptionInterface({
     const trimmed = textToSend.trim();
     if (!trimmed) return;
 
-    // Prevent duplicate sends — 8s window covers slow LLM + reconnect retries
-    const now = Date.now();
-    if (
-      lastSentTextRef.current === trimmed &&
-      now - lastSentTimeRef.current < 8000
-    ) {
-      console.log("Duplicate send prevented:", trimmed);
+    // Prevent two UI events (for example auto-send + manual click) from sending
+    // concurrently for the same active question. The lock is cleared by the
+    // server response/error, so identical answers to later questions are valid.
+    if (pendingRequestIdRef.current) {
       return;
     }
 
@@ -1058,9 +1087,15 @@ export default function TranscriptionInterface({
       autoSendTimeoutRef.current = null;
     }
 
-    // Track what we're sending
-    lastSentTextRef.current = trimmed;
-    lastSentTimeRef.current = now;
+    const requestId = createRequestId();
+    const sent = sendTextInput(trimmed, {
+      requestId,
+      questionId: activeQuestionIdRef.current,
+    });
+    if (!sent) {
+      return;
+    }
+    pendingRequestIdRef.current = requestId;
 
     setMessages((prev) => {
       const lastMessage = prev[prev.length - 1];
@@ -1075,7 +1110,6 @@ export default function TranscriptionInterface({
       return [...prev, userMessage];
     });
 
-    sendTextInput(trimmed);
     setIsUnderstanding(true);
     // Don't clear agentThoughts here — the server sends thought_update immediately
     // after receiving text_input. Clearing here creates a flash of UnderstandingCard
@@ -1208,7 +1242,11 @@ export default function TranscriptionInterface({
         }
         
         if (sendStartInterview) {
-          const result = sendStartInterview(userId, formIdToUse);
+          const result = sendStartInterview(
+            userId,
+            formIdToUse,
+            currentAttemptIdRef.current || initialAttemptId,
+          );
           console.log(`[TranscriptionInterface] sendStartInterview returned: ${result}`);
         } else {
           console.error(`[TranscriptionInterface] sendStartInterview is undefined!`);
@@ -1216,7 +1254,7 @@ export default function TranscriptionInterface({
       }, 500); // Increased delay to 500ms
       return () => clearTimeout(timer);
     }
-  }, [isConnected, userId, initialFormId, sendStartInterview]);
+  }, [isConnected, userId, initialFormId, initialAttemptId, sendStartInterview]);
 
   // No auto-start mic — user explicitly clicks the mic button to record,
   // or types in the text box. Both are always available after Get Started.
@@ -1266,20 +1304,21 @@ export default function TranscriptionInterface({
       isRecordingRef.current = true;
       await startRecording();
       setIsListening(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       isRecordingRef.current = false;
       audioStartSentRef.current = false;
       setIsListening(false);
       let errorMessage = "Failed to start recording. ";
+      const recordingError = error instanceof Error ? error : null;
       
-      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+      if (recordingError?.name === "NotAllowedError" || recordingError?.name === "PermissionDeniedError") {
         errorMessage += "Microphone permission denied. Please allow microphone access and try again.";
-      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+      } else if (recordingError?.name === "NotFoundError" || recordingError?.name === "DevicesNotFoundError") {
         errorMessage += "No microphone found. Please connect a microphone and try again.";
-      } else if (error.name === "NotSupportedError" || error.name === "ConstraintNotSatisfiedError") {
+      } else if (recordingError?.name === "NotSupportedError" || recordingError?.name === "ConstraintNotSatisfiedError") {
         errorMessage += "Microphone not supported. Please use a different browser or device.";
-      } else if (error.message) {
-        errorMessage += error.message;
+      } else if (recordingError?.message) {
+        errorMessage += recordingError.message;
       } else {
         errorMessage += "Please check microphone permissions and try again.";
       }
@@ -1331,7 +1370,7 @@ export default function TranscriptionInterface({
 
     // Don't clear transcript immediately - wait for server response
     // The server will send back the transcription, which will update the textarea
-  }, [stopRecording, sendAudioEnd, dispatchPendingTranscription]);
+  }, [stopRecording, sendAudioEnd]);
 
   // Handle mic click
   const handleMicClick = useCallback(async () => {
@@ -1452,7 +1491,7 @@ export default function TranscriptionInterface({
     // ── multi_answer: all PROM questions at once with section grouping ───────────
     if (type === "multi_answer" && meta.questions?.length) {
       return (
-        <_MultiAnswerInput
+        <MultiAnswerInput
           questions={meta.questions}
           questionOptions={meta.question_options ?? []}
           questionTypes={meta.question_types ?? []}
@@ -1476,7 +1515,7 @@ export default function TranscriptionInterface({
         </div>
       );
       return isProm
-        ? <_PromWrapper onAnswer={onAnswer}>{inner}</_PromWrapper>
+        ? <PromWrapper onAnswer={onAnswer}>{inner}</PromWrapper>
         : inner(onAnswer);
     }
 
@@ -1493,18 +1532,18 @@ export default function TranscriptionInterface({
         </div>
       );
       return isProm
-        ? <_PromWrapper onAnswer={onAnswer}>{inner}</_PromWrapper>
+        ? <PromWrapper onAnswer={onAnswer}>{inner}</PromWrapper>
         : inner(onAnswer);
     }
 
     // ── multiple choice / checkbox ────────────────────────────────────────────
     if (type === "multiple_choice" || type === "checkbox") {
-      return <_CheckboxQuestion options={options || []} onAnswer={onAnswer} />;
+      return <CheckboxQuestion options={options || []} onAnswer={onAnswer} />;
     }
 
     // ── dropdown ─────────────────────────────────────────────────────────────
     if (type === "dropdown") {
-      return <_DropdownSelect options={options || []} onAnswer={onAnswer} />;
+      return <DropdownSelect options={options || []} onAnswer={onAnswer} />;
     }
 
     // ── scale / linear_scale (0–10 buttons) ─────────────────────────────────
@@ -1533,55 +1572,55 @@ export default function TranscriptionInterface({
         </div>
       );
       return isProm
-        ? <_PromWrapper onAnswer={onAnswer}>{scaleInner}</_PromWrapper>
+        ? <PromWrapper onAnswer={onAnswer}>{scaleInner}</PromWrapper>
         : scaleInner(onAnswer);
     }
 
     // ── rating (stars) ────────────────────────────────────────────────────────
     if (type === "rating") {
-      return <_RatingStars onAnswer={onAnswer} />;
+      return <RatingStars onAnswer={onAnswer} />;
     }
 
     // ── likert scale ──────────────────────────────────────────────────────────
     if (type === "likert") {
-      return <_LikertScale onAnswer={onAnswer} options={options} />;
+      return <LikertScale onAnswer={onAnswer} options={options} />;
     }
 
     // ── slider ────────────────────────────────────────────────────────────────
     if (type === "slider") {
-      return <_SliderInput onAnswer={onAnswer} options={options} />;
+      return <SliderInput onAnswer={onAnswer} options={options} />;
     }
 
     // ── number stepper ────────────────────────────────────────────────────────
     if (type === "number") {
-      return <_NumberStepper onAnswer={onAnswer} />;
+      return <NumberStepper onAnswer={onAnswer} />;
     }
 
     // ── short answer (inline input) ───────────────────────────────────────────
     if (type === "short_answer") {
-      return <_ShortAnswerInput onAnswer={onAnswer} />;
+      return <ShortAnswerInput onAnswer={onAnswer} />;
     }
 
     // ── paragraph (multiline) ─────────────────────────────────────────────────
     if (type === "paragraph") {
-      return <_ParagraphInput onAnswer={onAnswer} />;
+      return <ParagraphInput onAnswer={onAnswer} />;
     }
 
     // ── date / time ───────────────────────────────────────────────────────────
-    if (type === "date") return <_DateInput onAnswer={onAnswer} />;
-    if (type === "time") return <_TimeInput onAnswer={onAnswer} />;
+    if (type === "date") return <DateInput onAnswer={onAnswer} />;
+    if (type === "time") return <TimeInput onAnswer={onAnswer} />;
 
     // ── grid types ────────────────────────────────────────────────────────────
     if (type === "choice_grid") {
-      return <_ChoiceGrid options={options || []} onAnswer={onAnswer} />;
+      return <ChoiceGrid options={options || []} onAnswer={onAnswer} />;
     }
     if (type === "checkbox_grid") {
-      return <_CheckboxGrid options={options || []} onAnswer={onAnswer} />;
+      return <CheckboxGrid options={options || []} onAnswer={onAnswer} />;
     }
 
     // ── file upload ───────────────────────────────────────────────────────────
     if (type === "file_upload") {
-      return <_FileUploadInput onAnswer={onAnswer} />;
+      return <FileUploadInput onAnswer={onAnswer} />;
     }
 
     return null; // text / paragraph → user types in chat input normally
@@ -1625,10 +1664,10 @@ export default function TranscriptionInterface({
       const trimmedLine = line.trim();
       
       // Check if line starts with bullet point (•, -, *, or numbered)
-      if (trimmedLine.match(/^[•\-\*]\s/) || trimmedLine.match(/^\d+\.\s/)) {
+      if (trimmedLine.match(/^[•*-]\s/) || trimmedLine.match(/^\d+\.\s/)) {
         flushParagraph();
         // Remove bullet marker and add to list
-        const listItem = trimmedLine.replace(/^[•\-\*]\s/, '').replace(/^\d+\.\s/, '').trim();
+        const listItem = trimmedLine.replace(/^[•*-]\s/, '').replace(/^\d+\.\s/, '').trim();
         if (listItem) {
           currentList.push(listItem);
         }
@@ -1872,10 +1911,8 @@ export default function TranscriptionInterface({
                 {consentAccepted === false && (
                   <button
                     onClick={() => {
-                      const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
-                      const consentBase = isDev ? 'https://dev.consent.stance.health' : 'https://consent.stance.health';
                       const returnUrl = `${window.location.origin}/${userId}/FRM-01`;
-                      window.open(`${consentBase}/${userId}?redirect=${encodeURIComponent(returnUrl)}`, "_blank", "noopener");
+                      window.open(`${API_CONFIG.CONSENT_URL}/${userId}?redirect=${encodeURIComponent(returnUrl)}`, "_blank", "noopener");
                     }}
                     className="w-full max-w-xs flex items-center justify-center gap-2 bg-stance-neon text-stance-steel font-semibold text-[14px] rounded-2xl py-3.5 px-6 hover:bg-stance-neon/90 active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(200,255,0,0.25)]"
                   >
@@ -1932,7 +1969,16 @@ export default function TranscriptionInterface({
                                 // PROM questions (any type with question_id/s): silent submit — no chat bubble
                                 const isProm = !!(message.questionMeta?.question_id || message.questionMeta?.question_ids?.length);
                                 if (isProm || message.questionMeta?.type === "multi_answer") {
-                                  sendTextInput(answer);
+                                  sendTextInput(
+                                    answer,
+                                    {
+                                      inputMode: message.questionMeta?.type === "multi_answer"
+                                        ? "structured_prom"
+                                        : undefined,
+                                      requestId: createRequestId(),
+                                      questionId: activeQuestionIdRef.current,
+                                    },
+                                  );
                                   setIsUnderstanding(true);
                                 } else {
                                   if (sendTranscriptRef.current) sendTranscriptRef.current(answer);
@@ -1963,8 +2009,11 @@ export default function TranscriptionInterface({
                               const fd = new FormData();
                               for (let i = 0; i < files.length; i++) fd.append("files", files[i]);
                               fd.append("userId", userId);
+                              if (currentAttemptIdRef.current) {
+                                fd.append("attemptId", currentAttemptIdRef.current);
+                              }
                               toast({ title: "Uploading...", description: `Uploading ${files.length} file(s).` });
-                              const res = await fetch(getApiUrl(`/api/forms/${formId}/attachments`), { method: "POST", body: fd });
+                              const res = await authenticatedFetch(getApiUrl(`/api/forms/${formId}/attachments`), { method: "POST", body: fd });
                               if (!res.ok) throw new Error("Upload failed");
                               const result = await res.json();
                               toast({ title: "Upload Complete", description: "Documents added to your profile." });
@@ -2007,9 +2056,9 @@ export default function TranscriptionInterface({
                     {isLastUserMessage && isUnderstanding && (
                       <div className="w-full mt-3 flex justify-start">
                         {agentThoughts && agentThoughts.length > 0 ? (
-                          <_CompactThoughtStream thoughts={agentThoughts} />
+                          <CompactThoughtStream thoughts={agentThoughts} />
                         ) : (
-                          <_ThinkingDots />
+                          <ThinkingDots />
                         )}
                       </div>
                     )}
@@ -2041,7 +2090,7 @@ export default function TranscriptionInterface({
 
             {isProcessingVoice && !isListening && (
               <div className="flex justify-end">
-                <_VoiceProcessingCard />
+                <VoiceProcessingCard />
               </div>
             )}
 
@@ -2106,4 +2155,3 @@ export default function TranscriptionInterface({
     </div>
   );
 }
-

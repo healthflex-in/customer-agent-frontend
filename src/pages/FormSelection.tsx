@@ -4,9 +4,11 @@ import { MultipleChoiceCard } from "@/components/MultipleChoiceCard";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { getApiUrl } from "@/config/api";
+import { authenticatedFetch } from "@/config/auth";
 
 interface Form {
   formId: string;
+  attemptId?: string | null;
   title: string;
   timestamp?: string;
   createdAt: string;
@@ -18,7 +20,7 @@ interface Form {
 interface FormSelectionProps {
   userId: string;
   userName: string;
-  onFormSelected: (formId: string | null) => void;
+  onFormSelected: (formId: string | null, attemptId?: string | null) => void;
   onBack?: () => void;
 }
 
@@ -38,7 +40,7 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
       try {
         setIsLoading(true);
         setError(null);
-        const response = await fetch(getApiUrl(`/api/users/${userId}/forms`));
+        const response = await authenticatedFetch(getApiUrl(`/api/users/${userId}/forms`));
         if (!response.ok) {
           throw new Error(`Failed to fetch forms: ${response.statusText}`);
         }
@@ -49,8 +51,13 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
         const formsWithProgress = await Promise.all(
           forms.map(async (form: Form) => {
             try {
-              const progressRes = await fetch(
-                getApiUrl(`/api/forms/${form.formId}/progress`)
+              const progressRes = await authenticatedFetch(
+                getApiUrl(
+                  `/api/forms/${form.formId}/progress?userId=${encodeURIComponent(userId)}` +
+                  (form.attemptId
+                    ? `&attemptId=${encodeURIComponent(form.attemptId)}`
+                    : "")
+                )
               );
               if (!progressRes.ok) {
                 throw new Error("Failed to fetch progress");
@@ -99,9 +106,9 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
     }
   };
 
-  const handleFormSelect = (formId: string) => {
+  const handleFormSelect = (formId: string, attemptId?: string | null) => {
     // Load existing form
-    onFormSelected(formId);
+    onFormSelected(formId, attemptId);
   };
 
   // If no forms exist, skip selection and start new form
@@ -199,4 +206,3 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
 };
 
 export default FormSelection;
-

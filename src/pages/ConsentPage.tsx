@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getApiUrl } from "@/config/api";
+import { API_CONFIG, getApiUrl } from "@/config/api";
+import { authenticatedFetch } from "@/config/auth";
 
 type ConsentStatus = "loading" | "accepted" | "required" | "error";
 
@@ -24,7 +25,7 @@ export default function ConsentPage() {
       setStatus("required");
       return;
     }
-    fetch(getApiUrl(`/api/users/${userId}/consent`))
+    authenticatedFetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => {
         if (data.consentAccepted) {
@@ -48,12 +49,8 @@ export default function ConsentPage() {
 
   const handleAccept = () => {
     if (!checked || !userId) return;
-    const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
-    const consentBase = isDev
-      ? 'https://dev.consent.stance.health'
-      : 'https://consent.stance.health';
     const returnUrl = `${window.location.origin}/${userId}/FRM-01`;
-    window.location.href = `${consentBase}/${userId}?redirect=${encodeURIComponent(returnUrl)}`;
+    window.location.href = `${API_CONFIG.CONSENT_URL}/${userId}?redirect=${encodeURIComponent(returnUrl)}`;
   };
 
   if (status === "loading" || status === "accepted") {

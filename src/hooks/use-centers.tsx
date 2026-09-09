@@ -16,7 +16,7 @@ export const useCenters = () => {
   const loadCenters = React.useCallback(async () => {
     try {
       setLoadingCenters(true);
-      const response = await fetchCenters();
+      const response = await fetchCenters<{ centers: Center[] }>();
       if (response && response.centers) {
         setCenters(response.centers);
       }
@@ -38,4 +38,3 @@ export const useCenters = () => {
 
   return { centers, loadingCenters, loadCenters };
 };
-

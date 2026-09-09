@@ -4,9 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Navigate, useParams } from "react-router-dom";
+import { API_CONFIG } from "@/config/api";
 import Index from "./pages/Index";
 import FormPage from "./pages/FormPage";
-import DirectFormPage from "./pages/DirectFormPage";
 import NotFound from "./pages/NotFound";
 
 // Redirects /:userId → /:userId/FRM-01
@@ -18,9 +18,7 @@ function UserRedirect() {
 // Redirect /consent/:userId → external consent site
 function ConsentRedirect() {
   const { userId } = useParams<{ userId: string }>();
-  const isDev = import.meta.env.DEV || window.location.hostname.startsWith('dev.');
-  const consentBase = isDev ? 'https://dev.consent.stance.health' : 'https://consent.stance.health';
-  window.location.replace(`${consentBase}/${userId}`);
+  window.location.replace(`${API_CONFIG.CONSENT_URL}/${userId}`);
   return null;
 }
 
