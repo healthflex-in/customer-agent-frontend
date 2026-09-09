@@ -8,13 +8,16 @@ export default function Index() {
 
   const [userId, setUserId] = useState<string>("");
   const [formId, setFormId] = useState<string>("");
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     // Priority 1: path params /{userId}/{formId}
     if (pathUserId) {
+      const params = new URLSearchParams(window.location.search);
       setUserId(pathUserId);
       setFormId(pathFormId || "FRM-01");
+      setAttemptId(params.get("attemptId"));
       setReady(true);
       return;
     }
@@ -24,15 +27,21 @@ export default function Index() {
     const params = new URLSearchParams(window.location.search);
     const qUserId = params.get("userId");
     const qFormId = params.get("formId") || "FRM-01";
+    const qAttemptId = params.get("attemptId");
 
     if (qUserId) {
       setUserId(qUserId);
       setFormId(qFormId);
+      setAttemptId(qAttemptId);
       // Upgrade to clean path URL
-      navigate(`/${qUserId}/${qFormId}`, { replace: true });
+      navigate(
+        `/${qUserId}/${qFormId}` +
+          (qAttemptId ? `?attemptId=${encodeURIComponent(qAttemptId)}` : ""),
+        { replace: true },
+      );
       setReady(true);
     }
-  }, [pathUserId, pathFormId]);
+  }, [pathUserId, pathFormId, navigate]);
 
   // No userId in URL — show a simple access-denied message
   if (!ready) {
@@ -57,6 +66,7 @@ export default function Index() {
     <TranscriptionInterface
       userId={userId}
       initialFormId={formId}
+      initialAttemptId={attemptId}
     />
   );
 }

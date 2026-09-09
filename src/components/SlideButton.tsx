@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ export default function SlideButton({ onSlideComplete, text, disabled = false }:
     setIsDragging(true);
   };
 
-  const handleMove = (clientX: number) => {
+  const handleMove = useCallback((clientX: number) => {
     if (!isDragging || !containerRef.current || !sliderRef.current) return;
 
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -42,27 +42,27 @@ export default function SlideButton({ onSlideComplete, text, disabled = false }:
         }, 200);
       }
     }
-  };
+  }, [isDragging, isCompleted, onSlideComplete]);
 
-  const handleEnd = () => {
+  const handleEnd = useCallback(() => {
     setIsDragging(false);
     if (!isCompleted) {
       setPosition(0);
     }
-  };
+  }, [isCompleted]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     handleStart(e.clientX);
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     handleMove(e.clientX);
-  };
+  }, [handleMove]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     handleEnd();
-  };
+  }, [handleEnd]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     handleStart(e.touches[0].clientX);
@@ -85,7 +85,7 @@ export default function SlideButton({ onSlideComplete, text, disabled = false }:
         document.removeEventListener("mouseup", handleMouseUp);
       };
     }
-  }, [isDragging]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (
     <div

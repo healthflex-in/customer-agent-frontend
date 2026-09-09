@@ -6,6 +6,60 @@ interface UseVoiceRecorderOptions {
   onTranscript?: (text: string, isFinal: boolean) => void;
 }
 
+type LegacyGetUserMedia = (
+  constraints: MediaStreamConstraints,
+  onSuccess: (stream: MediaStream) => void,
+  onError: (error: DOMException) => void,
+) => void;
+
+type NavigatorWithLegacyMedia = Navigator & {
+  getUserMedia?: LegacyGetUserMedia;
+  webkitGetUserMedia?: LegacyGetUserMedia;
+  mozGetUserMedia?: LegacyGetUserMedia;
+  msGetUserMedia?: LegacyGetUserMedia;
+};
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike extends Event {
+  readonly resultIndex: number;
+  readonly results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionErrorEventLike extends Event {
+  readonly error: string;
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionLike;
+}
+
+type WindowWithLegacyMedia = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  webkitAudioContext?: typeof AudioContext;
+};
+
 export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscript }: UseVoiceRecorderOptions = {}) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -14,7 +68,7 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number>();
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const interimTranscriptRef = useRef<string>("");
 
   const startRecording = useCallback(async () => {
@@ -34,16 +88,17 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
         });
       } else {
         // Fallback for older browsers or browsers where mediaDevices might not be available yet
-        const getUserMedia = 
-          (navigator as any).getUserMedia ||
-          (navigator as any).webkitGetUserMedia ||
-          (navigator as any).mozGetUserMedia ||
-          (navigator as any).msGetUserMedia;
+        const legacyNavigator = navigator as NavigatorWithLegacyMedia;
+        const getUserMedia =
+          legacyNavigator.getUserMedia ||
+          legacyNavigator.webkitGetUserMedia ||
+          legacyNavigator.mozGetUserMedia ||
+          legacyNavigator.msGetUserMedia;
 
         if (!getUserMedia) {
           // Last resort: try to access mediaDevices.getUserMedia directly
-          if (navigator.mediaDevices && (navigator.mediaDevices as any).getUserMedia) {
-            stream = await (navigator.mediaDevices as any).getUserMedia({
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            stream = await navigator.mediaDevices.getUserMedia({
               audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -72,7 +127,11 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
 
       // Setup Web Speech API for live transcription
       if (onTranscript && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const legacyWindow = window as WindowWithLegacyMedia;
+        const SpeechRecognition = legacyWindow.SpeechRecognition || legacyWindow.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          throw new Error("Speech recognition is not supported in this browser");
+        }
         const recognition = new SpeechRecognition();
         
         recognition.continuous = true;
@@ -80,7 +139,7 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
         recognition.lang = 'en-US';
         recognition.maxAlternatives = 1;
         
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
           let interimTranscript = '';
           let finalTranscript = '';
           
@@ -106,7 +165,7 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
           }
         };
         
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
           console.error('Speech recognition error:', event.error);
           // Don't throw - just log, as this is optional functionality
         };
@@ -128,7 +187,8 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
       }
 
       // Setup audio visualization
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext
+        || (window as WindowWithLegacyMedia).webkitAudioContext;
       if (!AudioContextClass) {
         throw new Error("AudioContext is not supported in this browser");
       }
@@ -183,7 +243,7 @@ export default function useVoiceRecorder({ onAudioChunk, onAudioLevel, onTranscr
       // Start audio level monitoring
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
-      let isActive = true;
+      const isActive = true;
 
       const updateLevel = () => {
         if (!analyserRef.current || !isActive) return;
