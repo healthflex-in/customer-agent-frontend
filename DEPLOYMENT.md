@@ -94,9 +94,11 @@ not replace another frontend or any backend container.
 ```bash
 cp .env.dev-docker.example .env.dev-docker
 # Review the public endpoints in .env.dev-docker, then:
-docker compose --env-file .env.dev-docker \
+docker-compose -p stance-customer-agent-frontend-dev-isolated \
+  --env-file .env.dev-docker \
   -f docker-compose.dev-isolated.yml up -d --build
-docker compose --env-file .env.dev-docker \
+docker-compose -p stance-customer-agent-frontend-dev-isolated \
+  --env-file .env.dev-docker \
   -f docker-compose.dev-isolated.yml ps
 ```
 
@@ -113,15 +115,18 @@ Useful operations:
 
 ```bash
 # Logs
-docker compose --env-file .env.dev-docker \
+docker-compose -p stance-customer-agent-frontend-dev-isolated \
+  --env-file .env.dev-docker \
   -f docker-compose.dev-isolated.yml logs -f --tail=100
 
 # Rebuild after source or endpoint changes
-docker compose --env-file .env.dev-docker \
+docker-compose -p stance-customer-agent-frontend-dev-isolated \
+  --env-file .env.dev-docker \
   -f docker-compose.dev-isolated.yml up -d --build
 
 # Stop only this isolated frontend
-docker compose --env-file .env.dev-docker \
+docker-compose -p stance-customer-agent-frontend-dev-isolated \
+  --env-file .env.dev-docker \
   -f docker-compose.dev-isolated.yml down
 ```
 
