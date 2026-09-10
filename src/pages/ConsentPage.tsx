@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_CONFIG, getApiUrl } from "@/config/api";
-import { authenticatedFetch } from "@/config/auth";
 
 type ConsentStatus = "loading" | "accepted" | "required" | "error";
 
@@ -25,7 +24,7 @@ export default function ConsentPage() {
       setStatus("required");
       return;
     }
-    authenticatedFetch(getApiUrl(`/api/users/${userId}/consent`))
+    fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => {
         if (data.consentAccepted) {

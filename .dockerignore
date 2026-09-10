@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+dist
+.vite
+coverage
+test-results
+playwright-report
+*.log
+*.tsbuildinfo
+.DS_Store
+.idea
+.vscode

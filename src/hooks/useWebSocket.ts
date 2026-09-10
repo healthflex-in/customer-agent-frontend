@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getWsUrl } from "@/config/api";
-import { clearAccessToken, getAccessToken } from "@/config/auth";
 
 interface InterviewState {
   section: string;
@@ -295,11 +294,8 @@ export default function useWebSocket({
         setStatus("disconnected");
         onStatusChange?.("disconnected");
 
-        if (event.code === 1008 || event.code === 1011 || event.code === 4003) {
+        if (event.code === 4003) {
           shouldReconnectRef.current = false;
-          if (event.code !== 4003) {
-            clearAccessToken();
-          }
         }
 
         // Only attempt to reconnect if it wasn't a manual close (code 1000) and reconnect is enabled
@@ -406,7 +402,6 @@ export default function useWebSocket({
         userId: userId,
         formId: formId || null,
         attemptId: attemptId || null,
-        accessToken: getAccessToken(),
         timestamp: Date.now() / 1000,
       };
       console.log(`[sendStartInterview] Sending message:`, message);

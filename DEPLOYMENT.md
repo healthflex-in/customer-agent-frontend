@@ -85,6 +85,46 @@ npm audit
 React Router 7 requires Node.js 20 or newer; `package.json` enforces that build
 requirement.
 
+## Isolated Docker development deployment
+
+The Docker deployment builds an immutable Vite bundle and serves it through
+Nginx. It uses a separate container, image, network, and host port, so it does
+not replace another frontend or any backend container.
+
+```bash
+cp .env.dev-docker.example .env.dev-docker
+# Review the public endpoints in .env.dev-docker, then:
+docker compose --env-file .env.dev-docker \
+  -f docker-compose.dev-isolated.yml up -d --build
+docker compose --env-file .env.dev-docker \
+  -f docker-compose.dev-isolated.yml ps
+```
+
+For local testing, open `http://localhost:8081/{patientId}/FRM-01`. The default
+example points the browser to the isolated backend on `localhost:8004`.
+
+For deployment behind a development hostname, set `VITE_APP_ENV=development`,
+use the HTTPS/WSS development backend endpoints, and keep the container bound
+to loopback. Configure the host reverse proxy to forward the development
+frontend hostname to `http://127.0.0.1:8081`. Because Vite embeds these values
+at build time, rebuild the image after changing any `VITE_*` value.
+
+Useful operations:
+
+```bash
+# Logs
+docker compose --env-file .env.dev-docker \
+  -f docker-compose.dev-isolated.yml logs -f --tail=100
+
+# Rebuild after source or endpoint changes
+docker compose --env-file .env.dev-docker \
+  -f docker-compose.dev-isolated.yml up -d --build
+
+# Stop only this isolated frontend
+docker compose --env-file .env.dev-docker \
+  -f docker-compose.dev-isolated.yml down
+```
+
 ## Repository hygiene
 
 `package-lock.json` is the single dependency lockfile and npm is the supported

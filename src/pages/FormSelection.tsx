@@ -4,7 +4,6 @@ import { MultipleChoiceCard } from "@/components/MultipleChoiceCard";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { getApiUrl } from "@/config/api";
-import { authenticatedFetch } from "@/config/auth";
 
 interface Form {
   formId: string;
@@ -40,7 +39,7 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
       try {
         setIsLoading(true);
         setError(null);
-        const response = await authenticatedFetch(getApiUrl(`/api/users/${userId}/forms`));
+        const response = await fetch(getApiUrl(`/api/users/${userId}/forms`));
         if (!response.ok) {
           throw new Error(`Failed to fetch forms: ${response.statusText}`);
         }
@@ -51,7 +50,7 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
         const formsWithProgress = await Promise.all(
           forms.map(async (form: Form) => {
             try {
-              const progressRes = await authenticatedFetch(
+              const progressRes = await fetch(
                 getApiUrl(
                   `/api/forms/${form.formId}/progress?userId=${encodeURIComponent(userId)}` +
                   (form.attemptId

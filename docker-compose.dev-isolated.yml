@@ -1,0 +1,39 @@
+name: stance-customer-agent-frontend-dev-isolated
+
+services:
+  customer-agent-frontend-dev-isolated:
+    image: stance-customer-agent-frontend-dev-isolated:local
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        VITE_APP_ENV: ${VITE_APP_ENV:?Set VITE_APP_ENV in the Compose env file}
+        VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL in the Compose env file}
+        VITE_WS_URL: ${VITE_WS_URL:?Set VITE_WS_URL in the Compose env file}
+        VITE_GRAPHQL_URL: ${VITE_GRAPHQL_URL:-}
+        VITE_CONSENT_URL: ${VITE_CONSENT_URL:?Set VITE_CONSENT_URL in the Compose env file}
+        VITE_API_KEY: ${VITE_API_KEY:-}
+        VITE_ORGANIZATION_ID: ${VITE_ORGANIZATION_ID:-}
+    container_name: customer-agent-frontend-dev-isolated
+    ports:
+      - "127.0.0.1:${FRONTEND_DEV_PORT:-8081}:8080"
+    init: true
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 256m
+    mem_reservation: 64m
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - frontend-dev-isolated-network
+
+networks:
+  frontend-dev-isolated-network:
+    name: customer-agent-frontend-dev-isolated-network
+    driver: bridge

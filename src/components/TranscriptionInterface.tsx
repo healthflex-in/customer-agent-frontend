@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Mic, Save, Trash2, Send, Square, Paperclip, ShieldCheck } from "lucide-react";
 import { API_CONFIG, getApiUrl, getWsUrl } from "@/config/api";
-import { authenticatedFetch } from "@/config/auth";
 import WaveformAnimation from "./WaveformAnimation";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import useWebSocket from "@/hooks/useWebSocket";
@@ -781,7 +780,7 @@ export default function TranscriptionInterface({
   // ── Consent check ────────────────────────────────────────────────────────────
   const checkConsent = useCallback(() => {
     if (!userId) return;
-    authenticatedFetch(getApiUrl(`/api/users/${userId}/consent`))
+    fetch(getApiUrl(`/api/users/${userId}/consent`))
       .then((r) => r.json())
       .then((data) => setConsentAccepted(!!data.consentAccepted))
       .catch(() => setConsentAccepted(false)); // fail closed — show consent button if API unreachable
@@ -2013,7 +2012,7 @@ export default function TranscriptionInterface({
                                 fd.append("attemptId", currentAttemptIdRef.current);
                               }
                               toast({ title: "Uploading...", description: `Uploading ${files.length} file(s).` });
-                              const res = await authenticatedFetch(getApiUrl(`/api/forms/${formId}/attachments`), { method: "POST", body: fd });
+                              const res = await fetch(getApiUrl(`/api/forms/${formId}/attachments`), { method: "POST", body: fd });
                               if (!res.ok) throw new Error("Upload failed");
                               const result = await res.json();
                               toast({ title: "Upload Complete", description: "Documents added to your profile." });
