@@ -111,6 +111,13 @@ to loopback. Configure the host reverse proxy to forward the development
 frontend hostname to `http://127.0.0.1:8081`. Because Vite embeds these values
 at build time, rebuild the image after changing any `VITE_*` value.
 
+For temporary direct-IP UAT only, set `VITE_APP_ENV=development`, use
+`http://SERVER_IP:8004` and `ws://SERVER_IP:8004`, and set
+`VITE_ALLOW_INSECURE_DEV_IP=true`. The exception accepts literal IP addresses
+only and is rejected for production builds. Restrict ports 8081 and 8004 to the
+tester's IP in the firewall/security group. Microphone access may be blocked by
+browsers on an insecure public-IP origin; HTTPS is required for full voice UAT.
+
 Useful operations:
 
 ```bash

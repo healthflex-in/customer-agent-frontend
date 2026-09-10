@@ -6,6 +6,7 @@ export interface PublicEnvironment {
   VITE_WS_URL?: string;
   VITE_GRAPHQL_URL?: string;
   VITE_CONSENT_URL?: string;
+  VITE_ALLOW_INSECURE_DEV_IP?: string;
 }
 
 export interface RuntimeEndpoints {
@@ -88,6 +89,14 @@ function isPrivateIpv4(hostname: string): boolean {
   );
 }
 
+function isIpv4Hostname(hostname: string): boolean {
+  const octets = hostname.split(".").map(Number);
+  return (
+    octets.length === 4 &&
+    octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
+  );
+}
+
 function assertEnvironmentHost(
   name: keyof PublicEnvironment,
   url: URL,
@@ -127,6 +136,13 @@ export function resolveRuntimeEndpoints(env: PublicEnvironment): RuntimeEndpoint
     );
   }
   const appEnv = rawAppEnv as AppEnvironment;
+  const allowInsecureDevIp =
+    env.VITE_ALLOW_INSECURE_DEV_IP?.trim().toLowerCase() === "true";
+  if (allowInsecureDevIp && appEnv !== "development") {
+    throw new Error(
+      "VITE_ALLOW_INSECURE_DEV_IP is permitted only when VITE_APP_ENV=development",
+    );
+  }
 
   const apiUrl = parseEndpoint(
     "VITE_API_URL",
@@ -165,10 +181,17 @@ export function resolveRuntimeEndpoints(env: PublicEnvironment): RuntimeEndpoint
   if (graphqlUrl) entries.push(["VITE_GRAPHQL_URL", graphqlUrl]);
   entries.forEach(([name, url]) => assertEnvironmentHost(name, url, appEnv));
 
-  if (appEnv !== "local" && apiUrl.protocol !== "https:") {
+  const insecureIpTransportAllowed =
+    allowInsecureDevIp &&
+    isIpv4Hostname(apiUrl.hostname) &&
+    isIpv4Hostname(wsUrl.hostname) &&
+    apiUrl.protocol === "http:" &&
+    wsUrl.protocol === "ws:";
+
+  if (appEnv !== "local" && apiUrl.protocol !== "https:" && !insecureIpTransportAllowed) {
     throw new Error("Deployed VITE_API_URL must use HTTPS");
   }
-  if (appEnv !== "local" && wsUrl.protocol !== "wss:") {
+  if (appEnv !== "local" && wsUrl.protocol !== "wss:" && !insecureIpTransportAllowed) {
     throw new Error("Deployed VITE_WS_URL must use WSS");
   }
 

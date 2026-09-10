@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_GRAPHQL_URL?: string
   readonly VITE_CONSENT_URL?: string
   readonly VITE_APP_ENV?: 'local' | 'development' | 'staging' | 'production'
+  readonly VITE_ALLOW_INSECURE_DEV_IP?: string
   readonly VITE_API_KEY?: string
   readonly VITE_ORGANIZATION_ID?: string
 }

@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     VITE_WS_URL: environment.VITE_WS_URL,
     VITE_GRAPHQL_URL: environment.VITE_GRAPHQL_URL,
     VITE_CONSENT_URL: environment.VITE_CONSENT_URL,
+    VITE_ALLOW_INSECURE_DEV_IP: environment.VITE_ALLOW_INSECURE_DEV_IP,
   });
 
   return {

@@ -12,11 +12,14 @@ services:
         VITE_WS_URL: ${VITE_WS_URL:?Set VITE_WS_URL in the Compose env file}
         VITE_GRAPHQL_URL: ${VITE_GRAPHQL_URL:-}
         VITE_CONSENT_URL: ${VITE_CONSENT_URL:?Set VITE_CONSENT_URL in the Compose env file}
+        VITE_ALLOW_INSECURE_DEV_IP: ${VITE_ALLOW_INSECURE_DEV_IP:-false}
         VITE_API_KEY: ${VITE_API_KEY:-}
         VITE_ORGANIZATION_ID: ${VITE_ORGANIZATION_ID:-}
     container_name: customer-agent-frontend-dev-isolated
     ports:
-      - "127.0.0.1:${FRONTEND_DEV_PORT:-8081}:8080"
+      # Temporary direct-IP UAT access. Restrict this port to tester IPs in the
+      # host firewall/security group and restore 127.0.0.1 when TLS is enabled.
+      - "0.0.0.0:${FRONTEND_DEV_PORT:-8081}:8080"
     init: true
     restart: unless-stopped
     cpus: 1.0
