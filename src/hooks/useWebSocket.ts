@@ -294,7 +294,10 @@ export default function useWebSocket({
         setStatus("disconnected");
         onStatusChange?.("disconnected");
 
-        if (event.code === 4003) {
+        // Clinical escalation (4003) and policy violations (1008) require a
+        // user/configuration change. Retrying the same socket every three
+        // seconds cannot recover and creates a noisy reconnect loop.
+        if (event.code === 4003 || event.code === 1008) {
           shouldReconnectRef.current = false;
         }
 
