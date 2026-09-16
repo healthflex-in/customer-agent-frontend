@@ -15,6 +15,8 @@ interface InterviewState {
   formId?: string;
   attemptId?: string | null;
   promSteps?: string[] | null;
+  status?: "draft" | "in_progress" | "completed";
+  locked?: boolean;
 }
 
 interface ChatHistoryMessage {
@@ -53,7 +55,7 @@ export interface QuestionMeta {
 }
 
 interface WebSocketMessage {
-  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history" | "thought_update" | "token" | "submission_ack" | "clinical_escalation";
+  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "form_completed" | "chat_history" | "thought_update" | "token" | "submission_ack" | "clinical_escalation";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
@@ -71,7 +73,9 @@ interface WebSocketMessage {
   thoughts?: ThoughtStage[]; // for thought_update type
   content?: string; // streaming token content
   requestId?: string;
-  status?: "duplicate";
+  status?: "duplicate" | "completed";
+  category?: string;
+  severity?: string;
 }
 
 interface TextInputOptions {
@@ -90,10 +94,12 @@ interface UseWebSocketOptions {
   onStatusChange?: (status: "disconnected" | "connecting" | "connected") => void;
   onFormSelectionRequired?: (forms: unknown[]) => void;
   onFormLoaded?: (formData: Record<string, unknown>, interviewState?: InterviewState) => void;
+  onFormCompleted?: (message: string, interviewState?: InterviewState) => void;
   onAttachmentRequest?: (messageText?: string) => void;
   onChatHistory?: (messages: ChatHistoryMessage[]) => void;
   onThoughtUpdate?: (thoughts: ThoughtStage[]) => void;
   onToken?: (token: string) => void;
+  onClinicalEscalation?: (message: string, category?: string, severity?: string) => void;
 }
 
 export default function useWebSocket({
@@ -106,10 +112,12 @@ export default function useWebSocket({
   onStatusChange,
   onFormSelectionRequired,
   onFormLoaded,
+  onFormCompleted,
   onAttachmentRequest,
   onChatHistory,
   onThoughtUpdate,
   onToken,
+  onClinicalEscalation,
 }: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
@@ -201,6 +209,18 @@ export default function useWebSocket({
             if (data.text && onMessage) {
               onMessage(data.text, undefined, interviewState, false);
             }
+          } else if (data.type === "form_completed") {
+            const interviewState = data.interview_state ? {
+              ...data.interview_state,
+              attachments: data.interview_state.attachments || [],
+              formId: data.interview_state.formId,
+              status: "completed" as const,
+              locked: true,
+            } : undefined;
+            onFormCompleted?.(
+              data.text || "This assessment has already been completed.",
+              interviewState,
+            );
           } else if (data.type === "text_message") {
             // Text message with optional transcription and interview state
             const interviewState = data.interview_state ? {
@@ -263,7 +283,11 @@ export default function useWebSocket({
           } else if (data.type === "clinical_escalation") {
             // Render the deterministic safety message. The server closes with
             // code 4003 immediately afterwards so no further intake is accepted.
-            onMessage?.(data.text || "Please seek urgent professional help now.");
+            onClinicalEscalation?.(
+              data.text || "Please seek urgent professional help now.",
+              data.category,
+              data.severity,
+            );
           } else if (data.type === "error") {
             onError?.(new Error(data.text || data.message || "Unknown error"));
           }
@@ -321,7 +345,7 @@ export default function useWebSocket({
         onError?.(error as Error);
       }
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onFormCompleted, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect
@@ -429,22 +453,6 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  const sendStartNewForm = useCallback((userId?: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: "start_new_form",
-          // Include userId so the server can safely associate the new form
-          // even if start_interview was not called in this session.
-          userId,
-          timestamp: Date.now() / 1000,
-        })
-      );
-      return true;
-    }
-    return false;
-  }, []);
-
   const sendLoadForm = useCallback((formId: string, attemptId?: string | null) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -504,7 +512,6 @@ export default function useWebSocket({
     sendTextInput,
     sendStartInterview,
     sendEndSession,
-    sendStartNewForm,
     sendLoadForm,
     isConnected: status === "connected",
   };
