@@ -2,6 +2,7 @@ import { FileText, Clock } from "lucide-react";
 
 interface Form {
   formId: string;
+  attemptId?: string | null;
   title: string;
   timestamp?: string;
   createdAt: string;
@@ -12,7 +13,7 @@ interface Form {
 
 interface FormSelectionCardProps {
   forms: Form[];
-  onSelectForm: (formId: string) => void;
+  onSelectForm: (formId: string, attemptId?: string | null) => void;
   style?: "glass" | "gradient" | "clean";
 }
 
@@ -106,8 +107,8 @@ export function FormSelectionCard({
         <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto">
           {forms.map((form, index) => (
             <button
-              key={form.formId}
-              onClick={() => onSelectForm(form.formId)}
+              key={form.attemptId || form.formId}
+              onClick={() => onSelectForm(form.formId, form.attemptId)}
               className="relative w-full text-left rounded-xl p-4 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] animate-in fade-in slide-in-from-bottom-2"
               style={{
                 animationDelay: `${index * 50}ms`,
@@ -198,4 +199,3 @@ export function FormSelectionCard({
     </div>
   );
 }
-

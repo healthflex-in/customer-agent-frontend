@@ -10,7 +10,29 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+*.tsbuildinfo
 *.local
+# npm/package-lock.json is the repository's single package-manager contract.
+bun.lock
+bun.lockb
+yarn.lock
+pnpm-lock.yaml
+.vite/
+coverage/
+test-results/
+playwright-report/
+.eslintcache
+lint_output*.txt
+eslint-report.*
+*.tmp
+*.temp
+Thumbs.db
+
+# Environment values are machine/deployment-specific. VITE_* values are still
+# browser-visible, but API credentials must not be committed as fallbacks.
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*

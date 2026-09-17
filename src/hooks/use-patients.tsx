@@ -30,7 +30,9 @@ export const usePatients = (centerId: string) => {
       try {
         setLoadingPatients(true);
         console.log('Calling searchUsersWithPagination...');
-        const response = await searchUsersWithPagination(
+        const response = await searchUsersWithPagination<{
+          users: { data: Patient[] };
+        }>(
           'PATIENT',
           [centerId],
           searchTerm
@@ -60,4 +62,3 @@ export const usePatients = (centerId: string) => {
 
   return { patients, loadingPatients, searchPatients, clearPatients };
 };
-

@@ -65,7 +65,9 @@ export const useAppointments = (patientId: string) => {
         setLastLoadedPatientId(currentPatientId);
 
         console.log('Loading appointments for patientId:', currentPatientId);
-        const response = await fetchAppointments(currentPatientId);
+        const response = await fetchAppointments<{ reports: Appointment[] }>(
+          currentPatientId
+        );
 
         if (response && response.reports) {
           // Filter out reports without appointments and sort by startTime (most recent first)
@@ -142,4 +144,3 @@ export const useAppointments = (patientId: string) => {
     clearAppointments,
   };
 };
-
