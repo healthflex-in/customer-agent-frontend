@@ -124,11 +124,12 @@ export default function useWebSocket({
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const isConnectingRef = useRef(false);
   const shouldReconnectRef = useRef(true);
+  const completedRef = useRef(false);
   const isMountedRef = useRef(true);
   const audioBuffersRef = useRef<Map<string, Uint8Array>>(new Map());
 
   const connect = useCallback(async () => {
-    if (!serverUrl || !isMountedRef.current) {
+    if (!serverUrl || !isMountedRef.current || completedRef.current) {
       return;
     }
 
@@ -210,13 +211,20 @@ export default function useWebSocket({
               onMessage(data.text, undefined, interviewState, false);
             }
           } else if (data.type === "form_completed") {
+            completedRef.current = true;
+            shouldReconnectRef.current = false;
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+              reconnectTimeoutRef.current = undefined;
+            }
+            audioBuffersRef.current.clear();
             const interviewState = data.interview_state ? {
               ...data.interview_state,
               attachments: data.interview_state.attachments || [],
               formId: data.interview_state.formId,
               status: "completed" as const,
               locked: true,
-            } : undefined;
+            } : { section: "Completed", missing_fields: [], attachments: [], status: "completed" as const, locked: true, progress: 100 };
             onFormCompleted?.(
               data.text || "This assessment has already been completed.",
               interviewState,
@@ -345,7 +353,7 @@ export default function useWebSocket({
         onError?.(error as Error);
       }
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onFormCompleted, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onFormCompleted, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken, onClinicalEscalation]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect
@@ -369,6 +377,7 @@ export default function useWebSocket({
   }, [onStatusChange]);
 
   const sendAudio = useCallback((audioData: ArrayBuffer) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       // Send binary audio data directly
       wsRef.current.send(audioData);
@@ -378,6 +387,7 @@ export default function useWebSocket({
   }, []);
 
   const sendAudioStart = useCallback(() => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -391,6 +401,7 @@ export default function useWebSocket({
   }, []);
 
   const sendAudioEnd = useCallback((duration: number) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -405,6 +416,7 @@ export default function useWebSocket({
   }, []);
 
   const sendTextInput = useCallback((text: string, options: TextInputOptions = {}) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -422,6 +434,7 @@ export default function useWebSocket({
   }, []);
 
   const sendStartInterview = useCallback((userId: string, formId?: string, attemptId?: string | null) => {
+    if (completedRef.current) return false;
     console.log(`[sendStartInterview] Called with userId=${userId}, formId=${formId}, wsState=${wsRef.current?.readyState}`);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message = {
@@ -454,6 +467,7 @@ export default function useWebSocket({
   }, []);
 
   const sendLoadForm = useCallback((formId: string, attemptId?: string | null) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
