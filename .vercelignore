@@ -5,3 +5,8 @@ dist
 .env.*
 *.pem
 context
+coverage
+test-results
+playwright-report
+lint_output*.txt
+*.log

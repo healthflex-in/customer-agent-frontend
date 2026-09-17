@@ -7,6 +7,7 @@ import { getApiUrl } from "@/config/api";
 
 interface Form {
   formId: string;
+  attemptId?: string | null;
   title: string;
   timestamp?: string;
   createdAt: string;
@@ -18,7 +19,7 @@ interface Form {
 interface FormSelectionProps {
   userId: string;
   userName: string;
-  onFormSelected: (formId: string | null) => void;
+  onFormSelected: (formId: string | null, attemptId?: string | null) => void;
   onBack?: () => void;
 }
 
@@ -50,7 +51,12 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
           forms.map(async (form: Form) => {
             try {
               const progressRes = await fetch(
-                getApiUrl(`/api/forms/${form.formId}/progress`)
+                getApiUrl(
+                  `/api/forms/${form.formId}/progress?userId=${encodeURIComponent(userId)}` +
+                  (form.attemptId
+                    ? `&attemptId=${encodeURIComponent(form.attemptId)}`
+                    : "")
+                )
               );
               if (!progressRes.ok) {
                 throw new Error("Failed to fetch progress");
@@ -99,9 +105,9 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
     }
   };
 
-  const handleFormSelect = (formId: string) => {
+  const handleFormSelect = (formId: string, attemptId?: string | null) => {
     // Load existing form
-    onFormSelected(formId);
+    onFormSelected(formId, attemptId);
   };
 
   // If no forms exist, skip selection and start new form
@@ -199,4 +205,3 @@ const FormSelection = ({ userId, userName, onFormSelected, onBack }: FormSelecti
 };
 
 export default FormSelection;
-
