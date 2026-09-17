@@ -64,6 +64,8 @@ interface InterviewState {
   formId?: string;
   attemptId?: string | null;
   promSteps?: string[] | null;   // PROM scale names — replaces hardcoded FRM-01 steps
+  status?: "draft" | "in_progress" | "completed";
+  locked?: boolean;
   sectionProgress?: {
     progress?: number;
     steps?: Array<{
@@ -740,6 +742,8 @@ export default function TranscriptionInterface({
   const [pendingUploadRequest, setPendingUploadRequest] = useState(false);
   const [uploadRequestText, setUploadRequestText] = useState<string | null>(null);
   const [currentFormId, setCurrentFormId] = useState<string>("");
+  const [isFormLocked, setIsFormLocked] = useState(false);
+  const [formLockReason, setFormLockReason] = useState<"completed" | "scope_redirect">("completed");
   const currentAttemptIdRef = useRef<string | null>(initialAttemptId);
   const [inputMode, setInputMode] = useState<"voice" | "text" | null>(null); // null = show ready screen
   const { toast } = useToast();
@@ -762,6 +766,9 @@ export default function TranscriptionInterface({
   const autoSendTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Track auto-send timeout
   const hasEditedRef = useRef<boolean>(false); // Track edit state for timeout callback
   const pendingRequestIdRef = useRef<string | null>(null);
+  const openingMessageReceivedRef = useRef(false);
+  const interviewStartRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectionErrorToastRef = useRef<{ dismiss: () => void } | null>(null);
   const activeQuestionIdRef = useRef<string>("turn-0");
   const questionSequenceRef = useRef(0);
 
@@ -805,6 +812,7 @@ export default function TranscriptionInterface({
 
   // Handle real-time transcription from server
   const handleTranscription = useCallback((transcription: string) => {
+    if (isFormLocked) return;
     // Hide listening card and the voice-processing indicator as soon as the
     // transcription text arrives — this is when the text lands in the textarea.
     setIsListening(false);
@@ -836,18 +844,17 @@ export default function TranscriptionInterface({
         }
       }, 2000);
     }
-  }, []);
+  }, [isFormLocked]);
 
   const rememberFormIdentity = useCallback((state: InterviewState) => {
     if (state.formId) {
       setCurrentFormId(state.formId);
     }
     currentAttemptIdRef.current = state.attemptId || null;
-    if (state.attemptId && typeof window !== "undefined") {
-      const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set("attemptId", state.attemptId);
-      window.history.replaceState(null, "", currentUrl.toString());
-    }
+    // Keep generic patient links generic. The attempt identity is retained in
+    // component state for uploads and subsequent messages, but generated IDs
+    // are not written into the address bar. Explicit consultant-issued links
+    // already contain their attemptId and remain unchanged.
   }, []);
 
   // Handle WebSocket messages
@@ -861,6 +868,13 @@ export default function TranscriptionInterface({
     
     // Only add message if it has content
     if (message && message.trim()) {
+      connectionErrorToastRef.current?.dismiss();
+      connectionErrorToastRef.current = null;
+      openingMessageReceivedRef.current = true;
+      if (interviewStartRetryRef.current) {
+        clearTimeout(interviewStartRetryRef.current);
+        interviewStartRetryRef.current = null;
+      }
       questionSequenceRef.current += 1;
       activeQuestionIdRef.current = `turn-${questionSequenceRef.current}`;
       // Add assistant message
@@ -894,6 +908,9 @@ export default function TranscriptionInterface({
     if (interviewState) {
       setInterviewState(interviewState);
       rememberFormIdentity(interviewState);
+      if (!interviewState.locked) {
+        setIsFormLocked(false);
+      }
     }
   }, [rememberFormIdentity]);
 
@@ -996,7 +1013,8 @@ export default function TranscriptionInterface({
 
   const handleWebSocketError = useCallback((error: Error) => {
     pendingRequestIdRef.current = null;
-    toast({
+    connectionErrorToastRef.current?.dismiss();
+    connectionErrorToastRef.current = toast({
       title: "Connection Error",
       description: error.message,
       variant: "destructive",
@@ -1016,6 +1034,43 @@ export default function TranscriptionInterface({
       rememberFormIdentity(interviewState);
     }
   }, [rememberFormIdentity]);
+
+  const handleFormCompleted = useCallback((message: string, state?: InterviewState) => {
+    setIsFormLocked(true);
+    setFormLockReason("completed");
+    setInputMode(null);
+    setIsListening(false);
+    setIsProcessingVoice(false);
+    setIsUnderstanding(false);
+    setPendingUploadRequest(false);
+    pendingRequestIdRef.current = null;
+    pendingTranscriptionRef.current = null;
+    if (autoSendTimeoutRef.current) {
+      clearTimeout(autoSendTimeoutRef.current);
+      autoSendTimeoutRef.current = null;
+    }
+    handleWebSocketMessage(message, undefined, state, false);
+  }, [handleWebSocketMessage]);
+
+  const handleClinicalEscalation = useCallback((message: string) => {
+    // The server has stopped this intake. Lock immediately instead of leaving
+    // a usable mic/text box visible while the WebSocket close event arrives.
+    setIsFormLocked(true);
+    setFormLockReason("scope_redirect");
+    setInputMode(null);
+    setIsListening(false);
+    setIsProcessingVoice(false);
+    setIsUnderstanding(false);
+    setPendingUploadRequest(false);
+    setStreamingToken("");
+    pendingRequestIdRef.current = null;
+    pendingTranscriptionRef.current = null;
+    if (autoSendTimeoutRef.current) {
+      clearTimeout(autoSendTimeoutRef.current);
+      autoSendTimeoutRef.current = null;
+    }
+    handleWebSocketMessage(message);
+  }, [handleWebSocketMessage]);
 
   const handleTranscriptionStable = useCallback((transcription: string) => {
     handleTranscription(transcription);
@@ -1054,7 +1109,7 @@ export default function TranscriptionInterface({
     [handleWebSocketMessage]
   );
 
-  const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendStartNewForm, sendLoadForm, isConnected } = useWebSocket({
+  const { status, connect, disconnect, sendAudio, sendAudioStart, sendAudioEnd, sendTextInput, sendStartInterview, sendEndSession, sendLoadForm, isConnected } = useWebSocket({
     serverUrl: userId ? getWsUrl(`/ws/${userId}`) : undefined,
     onMessage: handleWebSocketMessageWithTokenClear,
     onTranscription: handleTranscriptionStable,
@@ -1063,6 +1118,8 @@ export default function TranscriptionInterface({
     onError: handleWebSocketError,
     onStatusChange: handleWebSocketStatusChange,
     onFormLoaded: handleFormLoaded,
+    onFormCompleted: handleFormCompleted,
+    onClinicalEscalation: handleClinicalEscalation,
     onAttachmentRequest: handleAttachmentRequest,
     onChatHistory: handleChatHistory,
     onThoughtUpdate: handleThoughtUpdate,
@@ -1070,6 +1127,7 @@ export default function TranscriptionInterface({
   });
 
   const sendTranscript = useCallback((textToSend: string) => {
+    if (isFormLocked) return;
     const trimmed = textToSend.trim();
     if (!trimmed) return;
 
@@ -1120,7 +1178,7 @@ export default function TranscriptionInterface({
     hasEditedRef.current = false;
     lastTranscriptionRef.current = "";
     pendingTranscriptionRef.current = null;
-  }, [sendTextInput]);
+  }, [isFormLocked, sendTextInput]);
 
   useEffect(() => {
     sendTranscriptRef.current = sendTranscript;
@@ -1220,6 +1278,12 @@ export default function TranscriptionInterface({
         clearTimeout(autoSendTimeoutRef.current);
         autoSendTimeoutRef.current = null;
       }
+      if (interviewStartRetryRef.current) {
+        clearTimeout(interviewStartRetryRef.current);
+        interviewStartRetryRef.current = null;
+      }
+      connectionErrorToastRef.current?.dismiss();
+      connectionErrorToastRef.current = null;
     };
   }, []);
 
@@ -1255,6 +1319,34 @@ export default function TranscriptionInterface({
     }
   }, [isConnected, userId, initialFormId, initialAttemptId, sendStartInterview]);
 
+  const handleBeginInterview = useCallback(() => {
+    if (!consentAccepted || isFormLocked) return;
+
+    setInputMode("voice");
+
+    // start_interview is normally sent as soon as the socket connects so a
+    // completed attempt can be locked before interaction. During a dev reload,
+    // network switch, or socket replacement that first response can belong to
+    // the retired socket. Retry once on the current socket if no opening message
+    // reaches this component; the backend opening is deterministic and free of
+    // AI/provider calls.
+    if (!openingMessageReceivedRef.current && isConnected) {
+      if (interviewStartRetryRef.current) {
+        clearTimeout(interviewStartRetryRef.current);
+      }
+      interviewStartRetryRef.current = setTimeout(() => {
+        interviewStartRetryRef.current = null;
+        if (!openingMessageReceivedRef.current) {
+          sendStartInterview(
+            userId,
+            initialFormId || undefined,
+            currentAttemptIdRef.current || initialAttemptId,
+          );
+        }
+      }, 1000);
+    }
+  }, [consentAccepted, initialAttemptId, initialFormId, isConnected, isFormLocked, sendStartInterview, userId]);
+
   // No auto-start mic — user explicitly clicks the mic button to record,
   // or types in the text box. Both are always available after Get Started.
 
@@ -1265,7 +1357,7 @@ export default function TranscriptionInterface({
 
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
-    if (isModelSpeaking || !isConnected) return;
+    if (isFormLocked || isModelSpeaking || !isConnected) return;
     
     try {
       // Reset flags
@@ -1329,7 +1421,7 @@ export default function TranscriptionInterface({
       });
       console.error("Recording error details:", error);
     }
-  }, [isModelSpeaking, isConnected, startRecording, sendAudioStart, toast]);
+  }, [isFormLocked, isModelSpeaking, isConnected, startRecording, sendAudioStart, toast]);
 
   handleStartRecordingRef.current = handleStartRecording;
 
@@ -1854,7 +1946,26 @@ export default function TranscriptionInterface({
                  Condition is inputMode === null ONLY, not message count.
                  Returning users get messages in the background before clicking,
                  but they still see this screen first. ── */}
-            {inputMode === null ? (
+            {isFormLocked ? (
+              <div className="flex flex-col items-center text-center gap-6 pt-16 pb-8 min-h-[60vh] justify-center">
+                <div className="h-20 w-20 rounded-[24px] bg-stance-neon flex items-center justify-center shadow-[0_8px_32px_rgba(200,255,0,0.25)]">
+                  <ShieldCheck className="h-9 w-9 text-stance-steel" />
+                </div>
+                <div className="space-y-2 max-w-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-stance-steel/40">
+                    {formLockReason === "scope_redirect" ? "Assessment unavailable" : "Assessment completed"}
+                  </p>
+                  <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-stance-steel">
+                    {formLockReason === "scope_redirect" ? "This assessment cannot continue" : "Your responses have been submitted"}
+                  </h2>
+                  <p className="text-stance-grey/60 text-sm leading-relaxed">
+                    {formLockReason === "scope_redirect"
+                      ? "This link is for musculoskeletal concerns. Please follow the guidance shown in the conversation or contact the appropriate clinician."
+                      : "This assessment is now read-only. If another assessment is needed, your clinician will send you a new link."}
+                  </p>
+                </div>
+              </div>
+            ) : inputMode === null ? (
               <div className="flex flex-col items-center text-center gap-8 pt-16 pb-8 min-h-[60vh] justify-center">
 
                 {/* Big mic icon — like the original */}
@@ -1922,7 +2033,7 @@ export default function TranscriptionInterface({
 
                 {/* Get Started — disabled until consent accepted */}
                 <button
-                  onClick={() => consentAccepted && setInputMode("voice")}
+                  onClick={handleBeginInterview}
                   disabled={consentAccepted === false}
                   className={cn(
                     "w-full max-w-xs flex items-center justify-center gap-2 font-semibold text-[15px] rounded-2xl py-4 px-6 transition-all",
@@ -1937,6 +2048,13 @@ export default function TranscriptionInterface({
                   <Mic size={16} className={consentAccepted ? "text-stance-neon" : "text-white/30"} />
                 </button>
 
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-start pt-8">
+                <div className="max-w-[85%] rounded-2xl rounded-tl-none bg-stance-steel text-white p-5 md:p-6 shadow-sm border border-white/5">
+                  <p className="font-medium">Welcome to Stance Health.</p>
+                  <p className="mt-2 text-sm text-white/65">Preparing your first intake question…</p>
+                </div>
               </div>
             ) : (
               messages.map((message, index) => {
@@ -2099,7 +2217,7 @@ export default function TranscriptionInterface({
       </main>
 
       {/* Persistent Controls — shown after Get Started is clicked */}
-      {inputMode !== null && (
+      {inputMode !== null && !isFormLocked && (
         <div className="bg-[#F0F3F8] border-t border-stance-steel/10 px-6 py-4 z-20" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-3">
