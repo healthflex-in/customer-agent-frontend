@@ -1036,6 +1036,11 @@ export default function TranscriptionInterface({
   }, [rememberFormIdentity]);
 
   const handleFormCompleted = useCallback((message: string, state?: InterviewState) => {
+    // A terminal event must remain locked even with missing/legacy state.
+    const completedState: InterviewState = {
+      section: "Completed", progress: 100, missing_fields: [],
+      ...state, status: "completed", locked: true,
+    };
     setIsFormLocked(true);
     setFormLockReason("completed");
     setInputMode(null);
@@ -1043,13 +1048,16 @@ export default function TranscriptionInterface({
     setIsProcessingVoice(false);
     setIsUnderstanding(false);
     setPendingUploadRequest(false);
+    setStreamingToken("");
+    setAgentThoughts(null);
+    setIsModelSpeaking(false);
     pendingRequestIdRef.current = null;
     pendingTranscriptionRef.current = null;
     if (autoSendTimeoutRef.current) {
       clearTimeout(autoSendTimeoutRef.current);
       autoSendTimeoutRef.current = null;
     }
-    handleWebSocketMessage(message, undefined, state, false);
+    handleWebSocketMessage(message, undefined, completedState, false);
   }, [handleWebSocketMessage]);
 
   const handleClinicalEscalation = useCallback((message: string) => {
@@ -1259,6 +1267,10 @@ export default function TranscriptionInterface({
     // onTranscript is intentionally omitted - we only use server transcription
   });
 
+  useEffect(() => {
+    if (isFormLocked && isRecording) void stopRecording();
+  }, [isFormLocked, isRecording, stopRecording]);
+
   // Keep a ref to the latest connect so the mount effect doesn't re-run on re-renders
   const connectRef = useRef(connect);
   useEffect(() => { connectRef.current = connect; }, [connect]);
@@ -1290,7 +1302,7 @@ export default function TranscriptionInterface({
   // Start interview or load form once connected and userId is available
   useEffect(() => {
     console.log(`[TranscriptionInterface] useEffect triggered: isConnected=${isConnected}, userId=${userId}, initialFormId=${initialFormId}`);
-    if (isConnected && userId) {
+    if (isConnected && userId && !isFormLocked) {
       // Small delay to ensure connection is fully established
       const timer = setTimeout(() => {
         // Determine which formId to use (if any)
@@ -1317,7 +1329,7 @@ export default function TranscriptionInterface({
       }, 500); // Increased delay to 500ms
       return () => clearTimeout(timer);
     }
-  }, [isConnected, userId, initialFormId, initialAttemptId, sendStartInterview]);
+  }, [isConnected, userId, initialFormId, initialAttemptId, sendStartInterview, isFormLocked]);
 
   const handleBeginInterview = useCallback(() => {
     if (!consentAccepted || isFormLocked) return;
