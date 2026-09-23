@@ -185,6 +185,8 @@ export default function useWebSocket({
 
           // Parse JSON message
           const data: WebSocketMessage = JSON.parse(event.data);
+          // Ignore late tokens/audio/ordinary messages after terminal completion.
+          if (completedRef.current) return;
 
           if (data.type === "transcription") {
             // Real-time transcription update
@@ -210,7 +212,8 @@ export default function useWebSocket({
             if (data.text && onMessage) {
               onMessage(data.text, undefined, interviewState, false);
             }
-          } else if (data.type === "form_completed") {
+          } else if (data.type === "form_completed" ||
+            (data.type === "text_message" && data.interview_state?.status === "completed")) {
             completedRef.current = true;
             shouldReconnectRef.current = false;
             if (reconnectTimeoutRef.current) {
