@@ -5,8 +5,8 @@ const root = __dirname;
 const ts = require(root + '/node_modules/typescript');
 const source = fs.readFileSync(root + '/src/hooks/useWebSocket.ts', 'utf8');
 const compiled = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText;
-async function scenario(withState) {
-  let socket, connections = 0, received, timers = 0;
+async function scenario(withState, type = 'form_completed') {
+  let socket, connections = 0, received, timers = 0, messages = 0;
   class Socket {
     static OPEN = 1; static CONNECTING = 0;
     constructor() { socket = this; connections++; this.readyState = 1; this.sent = []; }
@@ -22,13 +22,18 @@ async function scenario(withState) {
     WebSocket: Socket, console: {log() {}, error() {}}, ArrayBuffer, Blob,
     setTimeout: () => { timers++; return 1; }, clearTimeout() {},
   });
-  const hook = exports.default({serverUrl: 'wss://example.test/ws/patient', onFormCompleted: (text, state) => {received = {text, state};}});
+  const hook = exports.default({serverUrl: 'wss://example.test/ws/patient', onMessage: () => {messages++;}, onFormCompleted: (text, state) => {received = {text, state};}});
   await hook.connect();
+  await socket.onmessage({data: JSON.stringify({type: 'text_message', text: 'Please review', interview_state: {progress: 100, status: 'in_progress'}})});
+  assert.equal(messages, 1);
+  assert.equal(received, undefined);
   assert.equal(hook.sendTextInput('before'), true);
-  await socket.onmessage({data: JSON.stringify({type: 'form_completed', text: 'Read only', ...(withState ? {interview_state: {section: 'Referral', progress: 100, missing_fields: [], locked: false}} : {})})});
+  await socket.onmessage({data: JSON.stringify({type, text: 'Read only', ...(withState ? {interview_state: {section: 'Referral', status: 'completed', progress: 100, missing_fields: [], locked: false}} : {})})});
   assert.equal(received.text, 'Read only');
   assert.equal(received.state.locked, true);
   assert.equal(received.state.status, 'completed');
+  await socket.onmessage({data: JSON.stringify({type: 'text_message', text: 'Late response', interview_state: {locked: false}})});
+  assert.equal(messages, 1);
   for (const call of [() => hook.sendTextInput('hi'), () => hook.sendAudio(new ArrayBuffer(0)), () => hook.sendAudioStart(), () => hook.sendAudioEnd(1), () => hook.sendStartInterview('p'), () => hook.sendLoadForm('FRM-01')]) assert.equal(call(), false);
   assert.equal(socket.sent.length, 1);
   socket.onclose({code: 1006});
@@ -36,4 +41,4 @@ async function scenario(withState) {
   await hook.connect();
   assert.equal(connections, 1);
 }
-(async () => {await scenario(true); await scenario(false); console.log('PASS: completion dispatch, forced lock, blocked inputs/start/load and no reconnect (with/without state)');})().catch(e => {console.error(e); process.exitCode = 1;});
+(async () => {await scenario(true); await scenario(false); await scenario(true, 'text_message'); console.log('PASS: reopened and active completion dispatch, forced lock, blocked inputs/start/load and no reconnect');})().catch(e => {console.error(e); process.exitCode = 1;});
