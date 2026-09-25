@@ -1,8 +1,5 @@
 {
   "rewrites": [
-    { "source": "/health",     "destination": "https://customeragent.stance.health/health" },
-    { "source": "/api/:path*", "destination": "https://customeragent.stance.health/api/:path*" },
-    { "source": "/ws/:path*",  "destination": "https://customeragent.stance.health/ws/:path*" },
     { "source": "/(.*)",       "destination": "/index.html" }
   ]
 }

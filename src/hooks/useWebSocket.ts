@@ -13,7 +13,10 @@ interface InterviewState {
     uploadedAt: string;
   }>;
   formId?: string;
+  attemptId?: string | null;
   promSteps?: string[] | null;
+  status?: "draft" | "in_progress" | "completed";
+  locked?: boolean;
 }
 
 interface ChatHistoryMessage {
@@ -52,15 +55,15 @@ export interface QuestionMeta {
 }
 
 interface WebSocketMessage {
-  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "chat_history" | "thought_update";
+  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "form_completed" | "chat_history" | "thought_update" | "token" | "submission_ack" | "clinical_escalation";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
   request_attachment?: boolean;
   question_meta?: QuestionMeta;
   message?: string;
-  forms?: any[];
-  form_data?: Record<string, any>;
+  forms?: unknown[];
+  form_data?: Record<string, unknown>;
   message_id?: string;
   total_size?: number;
   data?: string; // base64 encoded audio
@@ -68,6 +71,17 @@ interface WebSocketMessage {
   timestamp?: number;
   messages?: ChatHistoryMessage[]; // for chat_history type
   thoughts?: ThoughtStage[]; // for thought_update type
+  content?: string; // streaming token content
+  requestId?: string;
+  status?: "duplicate" | "completed";
+  category?: string;
+  severity?: string;
+}
+
+interface TextInputOptions {
+  inputMode?: "structured_prom";
+  requestId?: string;
+  questionId?: string;
 }
 
 interface UseWebSocketOptions {
@@ -78,12 +92,14 @@ interface UseWebSocketOptions {
   onAudioChunk?: (messageId: string, audioData: ArrayBuffer, isLast: boolean) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: "disconnected" | "connecting" | "connected") => void;
-  onFormSelectionRequired?: (forms: any[]) => void;
-  onFormLoaded?: (formData: Record<string, any>, interviewState?: InterviewState) => void;
+  onFormSelectionRequired?: (forms: unknown[]) => void;
+  onFormLoaded?: (formData: Record<string, unknown>, interviewState?: InterviewState) => void;
+  onFormCompleted?: (message: string, interviewState?: InterviewState) => void;
   onAttachmentRequest?: (messageText?: string) => void;
   onChatHistory?: (messages: ChatHistoryMessage[]) => void;
   onThoughtUpdate?: (thoughts: ThoughtStage[]) => void;
   onToken?: (token: string) => void;
+  onClinicalEscalation?: (message: string, category?: string, severity?: string) => void;
 }
 
 export default function useWebSocket({
@@ -96,22 +112,29 @@ export default function useWebSocket({
   onStatusChange,
   onFormSelectionRequired,
   onFormLoaded,
+  onFormCompleted,
   onAttachmentRequest,
   onChatHistory,
   onThoughtUpdate,
   onToken,
+  onClinicalEscalation,
 }: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const isConnectingRef = useRef(false);
   const shouldReconnectRef = useRef(true);
+  const completedRef = useRef(false);
+  const isMountedRef = useRef(true);
   const audioBuffersRef = useRef<Map<string, Uint8Array>>(new Map());
 
   const connect = useCallback(async () => {
-    if (!serverUrl) {
+    if (!serverUrl || !isMountedRef.current || completedRef.current) {
       return;
     }
+
+    // Explicit connect calls re-enable recovery after a previous manual close.
+    shouldReconnectRef.current = true;
 
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
@@ -137,6 +160,10 @@ export default function useWebSocket({
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (!isMountedRef.current || wsRef.current !== ws) {
+          ws.close(1000, "Stale connection");
+          return;
+        }
         isConnectingRef.current = false;
         setStatus("connected");
         onStatusChange?.("connected");
@@ -144,6 +171,9 @@ export default function useWebSocket({
       };
 
       ws.onmessage = async (event) => {
+        if (!isMountedRef.current || wsRef.current !== ws) {
+          return;
+        }
         try {
           // Check if message is binary (audio data)
           if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
@@ -155,6 +185,8 @@ export default function useWebSocket({
 
           // Parse JSON message
           const data: WebSocketMessage = JSON.parse(event.data);
+          // Ignore late tokens/audio/ordinary messages after terminal completion.
+          if (completedRef.current) return;
 
           if (data.type === "transcription") {
             // Real-time transcription update
@@ -180,6 +212,26 @@ export default function useWebSocket({
             if (data.text && onMessage) {
               onMessage(data.text, undefined, interviewState, false);
             }
+          } else if (data.type === "form_completed" ||
+            (data.type === "text_message" && data.interview_state?.status === "completed")) {
+            completedRef.current = true;
+            shouldReconnectRef.current = false;
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+              reconnectTimeoutRef.current = undefined;
+            }
+            audioBuffersRef.current.clear();
+            const interviewState = data.interview_state ? {
+              ...data.interview_state,
+              attachments: data.interview_state.attachments || [],
+              formId: data.interview_state.formId,
+              status: "completed" as const,
+              locked: true,
+            } : { section: "Completed", missing_fields: [], attachments: [], status: "completed" as const, locked: true, progress: 100 };
+            onFormCompleted?.(
+              data.text || "This assessment has already been completed.",
+              interviewState,
+            );
           } else if (data.type === "text_message") {
             // Text message with optional transcription and interview state
             const interviewState = data.interview_state ? {
@@ -237,8 +289,18 @@ export default function useWebSocket({
             if (data.messages && onChatHistory) {
               onChatHistory(data.messages);
             }
+          } else if (data.type === "submission_ack") {
+            console.debug(`Submission ${data.requestId || "unknown"}: ${data.status}`);
+          } else if (data.type === "clinical_escalation") {
+            // Render the deterministic safety message. The server closes with
+            // code 4003 immediately afterwards so no further intake is accepted.
+            onClinicalEscalation?.(
+              data.text || "Please seek urgent professional help now.",
+              data.category,
+              data.severity,
+            );
           } else if (data.type === "error") {
-            onError?.(new Error(data.text || "Unknown error"));
+            onError?.(new Error(data.text || data.message || "Unknown error"));
           }
         } catch (error) {
           console.error("Error parsing WebSocket message:", error);
@@ -247,6 +309,9 @@ export default function useWebSocket({
       };
 
       ws.onerror = (error) => {
+        if (!isMountedRef.current || wsRef.current !== ws) {
+          return;
+        }
         console.error("WebSocket error:", error);
         isConnectingRef.current = false;
         onError?.(new Error("WebSocket connection error"));
@@ -254,26 +319,44 @@ export default function useWebSocket({
 
       ws.onclose = (event) => {
         isConnectingRef.current = false;
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+        }
+        if (!isMountedRef.current) {
+          return;
+        }
         console.log(`WebSocket closed: code=${event.code}, reason=${event.reason || 'none'}, wasClean=${event.wasClean}`);
         setStatus("disconnected");
         onStatusChange?.("disconnected");
-        wsRef.current = null;
+
+        // Clinical escalation (4003) and policy violations (1008) require a
+        // user/configuration change. Retrying the same socket every three
+        // seconds cannot recover and creates a noisy reconnect loop.
+        if (event.code === 4003 || event.code === 1008) {
+          shouldReconnectRef.current = false;
+        }
 
         // Only attempt to reconnect if it wasn't a manual close (code 1000) and reconnect is enabled
         if (shouldReconnectRef.current && event.code !== 1000) {
           console.log("Attempting to reconnect in 3 seconds...");
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
           reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = undefined;
             connect();
           }, 3000);
         }
       };
     } catch (error) {
       isConnectingRef.current = false;
-      setStatus("disconnected");
-      onStatusChange?.("disconnected");
-      onError?.(error as Error);
+      if (isMountedRef.current) {
+        setStatus("disconnected");
+        onStatusChange?.("disconnected");
+        onError?.(error as Error);
+      }
     }
-  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken]);
+  }, [serverUrl, onMessage, onTranscription, onAudioStart, onAudioChunk, onError, onStatusChange, onFormSelectionRequired, onFormLoaded, onFormCompleted, onAttachmentRequest, onChatHistory, onThoughtUpdate, onToken, onClinicalEscalation]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false; // Prevent auto-reconnect on manual disconnect
@@ -289,11 +372,15 @@ export default function useWebSocket({
       wsRef.current = null;
     }
     isConnectingRef.current = false;
-    setStatus("disconnected");
-    onStatusChange?.("disconnected");
+    audioBuffersRef.current.clear();
+    if (isMountedRef.current) {
+      setStatus("disconnected");
+      onStatusChange?.("disconnected");
+    }
   }, [onStatusChange]);
 
   const sendAudio = useCallback((audioData: ArrayBuffer) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       // Send binary audio data directly
       wsRef.current.send(audioData);
@@ -303,6 +390,7 @@ export default function useWebSocket({
   }, []);
 
   const sendAudioStart = useCallback(() => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -316,6 +404,7 @@ export default function useWebSocket({
   }, []);
 
   const sendAudioEnd = useCallback((duration: number) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
@@ -329,12 +418,16 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  const sendTextInput = useCallback((text: string) => {
+  const sendTextInput = useCallback((text: string, options: TextInputOptions = {}) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: "text_input",
           text: text.trim(),
+          ...(options.inputMode ? { inputMode: options.inputMode } : {}),
+          ...(options.requestId ? { requestId: options.requestId } : {}),
+          ...(options.questionId ? { questionId: options.questionId } : {}),
           timestamp: Date.now() / 1000,
         })
       );
@@ -343,13 +436,15 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  const sendStartInterview = useCallback((userId: string, formId?: string) => {
+  const sendStartInterview = useCallback((userId: string, formId?: string, attemptId?: string | null) => {
+    if (completedRef.current) return false;
     console.log(`[sendStartInterview] Called with userId=${userId}, formId=${formId}, wsState=${wsRef.current?.readyState}`);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message = {
         type: "start_interview",
         userId: userId,
         formId: formId || null,
+        attemptId: attemptId || null,
         timestamp: Date.now() / 1000,
       };
       console.log(`[sendStartInterview] Sending message:`, message);
@@ -374,28 +469,14 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  const sendStartNewForm = useCallback((userId?: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: "start_new_form",
-          // Include userId so the server can safely associate the new form
-          // even if start_interview was not called in this session.
-          userId,
-          timestamp: Date.now() / 1000,
-        })
-      );
-      return true;
-    }
-    return false;
-  }, []);
-
-  const sendLoadForm = useCallback((formId: string) => {
+  const sendLoadForm = useCallback((formId: string, attemptId?: string | null) => {
+    if (completedRef.current) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: "load_form",
           formId: formId,
+          attemptId: attemptId || null,
           timestamp: Date.now() / 1000,
         })
       );
@@ -404,12 +485,39 @@ export default function useWebSocket({
     return false;
   }, []);
 
-  // Removed cleanup useEffect - it was causing immediate disconnection
-  // The WebSocket will be cleaned up naturally when:
-  // 1. Component unmounts (page navigation)
-  // 2. User explicitly calls disconnect()
-  // 3. Server closes connection
-  // 4. Network error occurs
+  // Unmount teardown intentionally has no callback dependencies. Depending on
+  // changing parent callbacks here would close a healthy socket on re-render.
+  useEffect(() => {
+    const audioBuffers = audioBuffersRef.current;
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      shouldReconnectRef.current = false;
+      isConnectingRef.current = false;
+
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = undefined;
+      }
+      audioBuffers.clear();
+
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (ws) {
+        // Detach callbacks first so close/error events cannot update unmounted state.
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        if (
+          ws.readyState === WebSocket.OPEN
+          || ws.readyState === WebSocket.CONNECTING
+        ) {
+          ws.close(1000, "Component unmounted");
+        }
+      }
+    };
+  }, []);
 
   return {
     status,
@@ -421,11 +529,9 @@ export default function useWebSocket({
     sendTextInput,
     sendStartInterview,
     sendEndSession,
-    sendStartNewForm,
     sendLoadForm,
     isConnected: status === "connected",
   };
 }
 
 export type { UseWebSocketOptions };
-

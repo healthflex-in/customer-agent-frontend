@@ -1,18 +1,22 @@
-import { API_KEY, getApiUrl } from './api-config';
+import {
+  GRAPHQL_BROWSER_API_KEY,
+  ORGANIZATION_ID,
+  getApiUrl,
+} from './api-config';
 import { onError } from '@apollo/client/link/error';
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
 
 // Create an error handling link
-const errorLink = onError(({ graphQLErrors, networkError }) => {
-  if (graphQLErrors) {
-    graphQLErrors.forEach(({ message, locations, path }) => {
+const errorLink = onError(({ error }) => {
+  if (CombinedGraphQLErrors.is(error)) {
+    error.errors.forEach(({ message, locations, path }) => {
       console.error(
         `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
       );
     });
-  }
-  if (networkError) {
-    console.error(`[Network error]: ${networkError}`);
+  } else {
+    console.error(`[Network error]: ${error.message}`);
   }
 });
 
@@ -20,8 +24,8 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
 const httpLink = new HttpLink({
   uri: getApiUrl(), // Direct URL (not proxied)
   headers: {
-    'x-api-key': API_KEY,
-    'x-organization-id': '67fe35f25e42152fb5185a5e', // Change if dynamic
+    'x-api-key': GRAPHQL_BROWSER_API_KEY,
+    'x-organization-id': ORGANIZATION_ID,
   },
 });
 
@@ -44,9 +48,14 @@ export const client = new ApolloClient({
 /**
  * Simple GraphQL client for making API calls
  */
-export async function graphqlRequest<T = any>(
+interface GraphQLResponse<T> {
+  data?: T;
+  errors?: Array<{ message?: string }>;
+}
+
+export async function graphqlRequest<T = unknown>(
   query: string,
-  variables: Record<string, any> = {}
+  variables: Record<string, unknown> = {}
 ): Promise<T> {
   const url = getApiUrl();
 
@@ -55,8 +64,8 @@ export async function graphqlRequest<T = any>(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
-        'x-organization-id': '67fe35f25e42152fb5185a5e', // Change if dynamic
+        'x-api-key': GRAPHQL_BROWSER_API_KEY,
+        'x-organization-id': ORGANIZATION_ID,
         Origin: window.location.origin,
       },
       mode: 'cors',
@@ -70,13 +79,18 @@ export async function graphqlRequest<T = any>(
       );
     }
 
-    const data = await response.json();
+    const data = await response.json() as GraphQLResponse<T>;
 
-    if (data.errors) {
-      throw new Error(data.errors.map((e: any) => e.message).join('\n'));
+    if (data.errors?.length) {
+      throw new Error(
+        data.errors.map((error) => error.message || "Unknown GraphQL error").join('\n')
+      );
     }
 
-    return data.data as T;
+    if (data.data === undefined) {
+      throw new Error("GraphQL response did not contain data");
+    }
+    return data.data;
   } catch (error) {
     console.error('GraphQL request failed:', error);
     throw error;
@@ -86,7 +100,7 @@ export async function graphqlRequest<T = any>(
 /**
  * Fetch centers
  */
-export async function fetchCenters<T = any>(): Promise<T> {
+export async function fetchCenters<T = unknown>(): Promise<T> {
   const query = `
     query Centers {
       centers {
@@ -121,7 +135,7 @@ export async function fetchCenters<T = any>(): Promise<T> {
 /**
  * Search users by name, type, and center
  */
-export async function searchUsers<T = any>(
+export async function searchUsers<T = unknown>(
   userType: string,
   centerId: string[],
   search?: string
@@ -150,7 +164,7 @@ export async function searchUsers<T = any>(
 /**
  * Search users with pagination - temporary function to avoid caching issues
  */
-export async function searchUsersWithPagination<T = any>(
+export async function searchUsersWithPagination<T = unknown>(
   userType: string,
   centerId: string[],
   search?: string
@@ -231,7 +245,7 @@ export async function searchUsersWithPagination<T = any>(
 /**
  * Fetch appointments for a patient using Reports query
  */
-export async function fetchAppointments<T = any>(
+export async function fetchAppointments<T = unknown>(
   patientId: string
 ): Promise<T> {
   // Ensure patientId is provided
