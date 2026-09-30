@@ -55,7 +55,7 @@ export interface QuestionMeta {
 }
 
 interface WebSocketMessage {
-  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "form_completed" | "chat_history" | "thought_update" | "token" | "submission_ack" | "clinical_escalation";
+  type: "text_message" | "audio_start" | "audio_chunk" | "error" | "transcription" | "form_selection_required" | "form_loaded" | "form_completed" | "chat_history" | "thought_update" | "token" | "submission_ack" | "clinical_escalation" | "pong";
   text?: string;
   transcription?: string;
   interview_state?: InterviewState;
@@ -122,6 +122,7 @@ export default function useWebSocket({
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval>>();
   const isConnectingRef = useRef(false);
   const shouldReconnectRef = useRef(true);
   const completedRef = useRef(false);
@@ -168,6 +169,14 @@ export default function useWebSocket({
         setStatus("connected");
         onStatusChange?.("connected");
         console.log("WebSocket connected successfully");
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+        }
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 25_000);
       };
 
       ws.onmessage = async (event) => {
@@ -188,7 +197,9 @@ export default function useWebSocket({
           // Ignore late tokens/audio/ordinary messages after terminal completion.
           if (completedRef.current) return;
 
-          if (data.type === "transcription") {
+          if (data.type === "pong") {
+            // Application heartbeat acknowledgement; no UI update required.
+          } else if (data.type === "transcription") {
             // Real-time transcription update
             if (data.text) {
               onTranscription?.(data.text);
@@ -318,6 +329,10 @@ export default function useWebSocket({
       };
 
       ws.onclose = (event) => {
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = undefined;
+        }
         isConnectingRef.current = false;
         if (wsRef.current === ws) {
           wsRef.current = null;
@@ -363,6 +378,10 @@ export default function useWebSocket({
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = undefined;
+    }
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = undefined;
     }
     if (wsRef.current) {
       // Close with code 1000 (normal closure) to indicate manual disconnect
@@ -498,6 +517,10 @@ export default function useWebSocket({
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = undefined;
+      }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = undefined;
       }
       audioBuffers.clear();
 

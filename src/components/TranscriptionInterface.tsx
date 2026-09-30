@@ -875,8 +875,6 @@ export default function TranscriptionInterface({
         clearTimeout(interviewStartRetryRef.current);
         interviewStartRetryRef.current = null;
       }
-      questionSequenceRef.current += 1;
-      activeQuestionIdRef.current = `turn-${questionSequenceRef.current}`;
       // Add assistant message
       const aiMessage: Message = {
         role: "assistant",
@@ -884,7 +882,21 @@ export default function TranscriptionInterface({
         timestamp: new Date(),
         questionMeta: questionMeta || undefined,
       };
-      setMessages((prev) => [...prev, aiMessage]);
+      setMessages((prev) => {
+        const lastMessage = prev[prev.length - 1];
+        // A network reconnect can legitimately make the backend resend the
+        // current opening/resume question. Keep one visible copy when no
+        // patient message occurred between the identical replies.
+        if (
+          lastMessage?.role === "assistant"
+          && lastMessage.content.trim() === aiMessage.content
+        ) {
+          return prev;
+        }
+        questionSequenceRef.current += 1;
+        activeQuestionIdRef.current = `turn-${questionSequenceRef.current}`;
+        return [...prev, aiMessage];
+      });
       setIsUnderstanding(false);
       setAgentThoughts(null);
     }
